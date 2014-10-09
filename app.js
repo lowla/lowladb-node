@@ -17,7 +17,7 @@ var LowlaSync = require('./lib/sync.js').LowlaSyncer;
 var LowlaAdapter = require('./lib/adapter.js').LowlaAdapter;
 var lowlaSync = new LowlaSync(lowlaConfig);
 
-lowlaConfig.syncNotifier = lowlaSync.updateWithPayload;
+lowlaConfig.syncNotifier = lowlaSync.getNotifierFunction();
 var lowlaDB = new LowlaAdapter(lowlaConfig);
 
 var app = express();
