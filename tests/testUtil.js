@@ -1,5 +1,6 @@
 
 var MongoClient = require('mongodb').MongoClient;
+var Mongo = require('mongodb');
 var _prom = require('../lib/promiseImpl.js');
 
 var _mc = new MongoClient();
@@ -14,15 +15,29 @@ exports.createDocs = function(rootName, num){
     docs.push({name: rootName + i, a: i, b: 2*i, _version:1})
   }
   return docs;
-}
-exports.enableQLongStackSupport = function(){
+};
+
+exports.enableLongStackSupport = function(){
   if(_prom.hasOwnProperty('longStackSupport')){  //enable Q stack traces if we're using Q...
     if(!_prom.longStackSupport) {
       _prom.longStackSupport = true;
-      console.log("Q longStack support enabled... \n");
+      console.log("longStack support enabled... \n");
     }
   }
-}
+};
+
+exports.readFile = function(path){
+  var deferred = _prom.defer();
+  require('fs').readFile(require('path').resolve(__dirname, path), 'UTF-8', function(err, data){
+    if(err){
+      return deferred.reject(err);
+    }
+    deferred.resolve( data );
+  });
+  return deferred.promise
+};
+
+//mongo
 
 mongo.prototype.openDatabase = function(url){
   var deferred = _prom.defer();
@@ -34,7 +49,7 @@ mongo.prototype.openDatabase = function(url){
     deferred.resolve(db);
   });
   return deferred.promise;
-}
+};
 
 mongo.prototype.getCollection = function(db, collName){
   var deferred = _prom.defer();
@@ -45,7 +60,7 @@ mongo.prototype.getCollection = function(db, collName){
     deferred.resolve(coll);
   });
   return deferred.promise;
-}
+};
 
 mongo.prototype.removeCollection = function(db, collName){
   var deferred = _prom.defer();
@@ -58,7 +73,7 @@ mongo.prototype.removeCollection = function(db, collName){
     });
   });
   return deferred.promise;
-}
+};
 
 mongo.prototype.findDocs = function(db, collectionName, query) {
   var deferred = _prom.defer();
@@ -80,7 +95,7 @@ mongo.prototype.findDocs = function(db, collectionName, query) {
   });
 
   return deferred.promise;
-}
+};
 
 mongo.prototype.getIds = function(db, collectionName){
   return _mongo.findDocs(db, collectionName, {}).then(function(docs){
@@ -90,7 +105,7 @@ mongo.prototype.getIds = function(db, collectionName){
     }
     return ids;
   })
-}
+};
 
 mongo.prototype.insertDocs = function(db, collectionName, docs) {
   var deferred = _prom.defer();
@@ -108,7 +123,7 @@ mongo.prototype.insertDocs = function(db, collectionName, docs) {
   });
 
   return deferred.promise;
-}
+};
 
 mongo.prototype.getCollectionNames = function(db){
   var deferred = _prom.defer();
@@ -127,7 +142,7 @@ mongo.prototype.getCollectionNames = function(db){
     deferred.resolve(ret);
   });
   return deferred.promise;
-}
+};
 
 mongo.prototype.removeAllCollections = function(db){
   return _mongo.getCollectionNames(db).then(function(collnames){
@@ -138,6 +153,6 @@ mongo.prototype.removeAllCollections = function(db){
     });
     return _prom.all(promises);
   })
-}
+};
 
 exports.mongo = _mongo;
