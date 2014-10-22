@@ -42,7 +42,7 @@ describe('LowlaSync', function() {
       return lowlaSync.updateWithPayload(testPayload)
         .then(function(response) {
           should.exist(response);
-          response.sequence.should.equal(1);
+          response.sequence.should.equal(2);
         })
     });
 
@@ -53,7 +53,7 @@ describe('LowlaSync', function() {
           return lowlaSync.updateWithPayload(testPayload);
         })
         .then(function(response) {
-          response.sequence.should.equal(2);
+          response.sequence.should.equal(4);
         })
     });
 
@@ -76,21 +76,24 @@ describe('LowlaSync', function() {
         .then(done, done);
     });
 
-    it('should be updating existing atoms', function() {
-      lowlaSync.updateWithPayload(testPayload)
+    it('should be updating existing atoms', function(done) {
+      return lowlaSync.updateWithPayload(testPayload)
         .then(function() {
           testPayload.modified[0].version = 3;
           return lowlaSync.updateWithPayload(testPayload);
         })
         .then(function() {
           var cursor = lowlaSync.atoms.find();
-          return Q.ninvoke(cursor.toArray, cursor);
+          cursor.toArray(function (err, atoms) {
+            if (err) {
+              done(err);
+            }
+            atoms.should.have.length.of(1);
+            atoms[0].version.should.equal(3);
+            atoms[0].sequence.should.equal(3);
+          })
         })
-        .then(function(atoms) {
-          atoms.should.have.length.of(1);
-          atoms[0].version.should.equal(3);
-          atoms[0].sequence.should.equal(2);
-        })
+        .then(done, done);
     })
   });
 
@@ -111,14 +114,14 @@ describe('LowlaSync', function() {
 
       it('should return atoms with same sequence', function() {
         return lowlaSync.changesSinceSequence(1).then(function (result) {
-          result.sequence.should.equal(1);
+          result.sequence.should.equal(2);
           result.atoms.should.have.length(1);
         })
       });
 
       it('should return no atoms with smaller sequence', function() {
         return lowlaSync.changesSinceSequence(4).then(function (result) {
-          result.sequence.should.equal(1);
+          result.sequence.should.equal(2);
           result.atoms.should.have.length(0);
         });
       })
