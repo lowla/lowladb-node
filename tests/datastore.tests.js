@@ -491,7 +491,10 @@ describe('Datastore', function () {
           collections[docs[i].collection]=true;
           docs[i].doc.name.should.equal(docs[i].collection + "_" + docs[i].doc.a)
         }
-      });
+        collections["TestCollection"].should.be.true;
+        collections["TestCollection2"].should.be.true;
+        collections["TestCollection3"].should.be.true;
+    });
 
     });
 
