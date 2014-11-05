@@ -132,6 +132,37 @@ describe('LowlaAdapter', function() {
         })
     });
 
+    it('should update an existing doc ignoring $SET _version if specified', function() {
+      //clients shouldn't send a $set for version but in the event they do we should ignore and use the lowla metadata
+      var out = new OutputStreamHolder();
+      var out2 = new OutputStreamHolder();
+      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+        .then(function(result) {
+          result.length.should.equal(1);
+          result[0].should.equal('lowladbtest.TestCollection$1234');
+          var newPayload = _.cloneDeep(testDocPayload);
+          newPayload.documents[0].ops = { $set: { a: 11, b: 22, _version: 99 }};
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2.writable()));
+        })
+        .then(function(result) {
+          should.exist(result);
+          result.length.should.equal(1);
+          result[0].should.equal('lowladbtest.TestCollection$1234');
+          var output = out.getOutput();
+          output.should.have.length.of(2);
+          output[0].version.should.equal(1);
+          output[1].a.should.equal(1);
+          output[1].b.should.equal(2);
+          var output2 = out2.getOutput();
+          output2.should.have.length.of(2);
+          output2[0].should.not.have.property('error');
+          output2[0].version.should.equal(2);
+          output2[1].a.should.equal(11);
+          output2[1].b.should.equal(22);
+        })
+    });
+
+
     it('server should win on conflict', function() {
       var out = new OutputStreamHolder();
       var out2 = new OutputStreamHolder();
