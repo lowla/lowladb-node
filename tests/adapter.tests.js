@@ -63,13 +63,46 @@ describe('LowlaAdapter', function() {
 
   });
 
-  describe('Push', function() {
+
+
+  describe('push', function() {   //full route tests adapter.push(req, res, next) -- see pushWithPayload tests for more detailed tests
+
+    it('Should return the pushed document', function () {
+
+      var res = createMockResponse();
+      var req = createMockRequest([], testDocPayload);
+      var next = function () {
+        throw new Error('Push handler shouldn\'t be calling next()')
+      }
+
+      return lowlaDb.push(req, res, next)
+        .then(function (result) {
+          should.exist(result);
+          result.length.should.equal(1);
+          result[0].should.equal('lowladbtest.TestCollection$1234');
+          var body = res.getBody();
+          body.should.have.length.of(2);
+          body[0].id.should.equal('lowladbtest.TestCollection$1234');
+          body[0].version.should.equal(1);
+          body[0].clientNs.should.equal('lowladbtest.TestCollection');
+          body[1].a.should.equal(1);
+          body[1].b.should.equal(2);
+          body[1]._version.should.equal(1);
+          res.headers.should.have.property('Cache-Control');
+          res.headers.should.have.property('Content-Type');
+          return true;
+        });
+    });
+
+  });
+
+  describe('pushWithPayload', function() {
 
     it('should return the pushed document', function () {
 
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
 
-      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function (result) {
           should.exist(result);
           result.length.should.equal(1);
@@ -87,8 +120,8 @@ describe('LowlaAdapter', function() {
     });
 
     it('should create the document in MongoDB', function(done) {
-      var out = new OutputStreamHolder();
-      lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+      var out = createOutputStream();
+      lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -105,15 +138,15 @@ describe('LowlaAdapter', function() {
     });
 
     it('should update an existing doc', function() {
-      var out = new OutputStreamHolder();
-      var out2 = new OutputStreamHolder();
-      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+      var out = createOutputStream();
+      var out2 = createOutputStream();
+      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 11, b: 22 }};
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2));
         })
         .then(function(result) {
           should.exist(result);
@@ -134,15 +167,15 @@ describe('LowlaAdapter', function() {
 
     it('should update an existing doc ignoring $SET _version if specified', function() {
       //clients shouldn't send a $set for version but in the event they do we should ignore and use the lowla metadata
-      var out = new OutputStreamHolder();
-      var out2 = new OutputStreamHolder();
-      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+      var out = createOutputStream();
+      var out2 = createOutputStream();
+      return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 11, b: 22, _version: 99 }};
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2));
         })
         .then(function(result) {
           should.exist(result);
@@ -164,11 +197,11 @@ describe('LowlaAdapter', function() {
 
 
     it('server should win on conflict', function() {
-      var out = new OutputStreamHolder();
-      var out2 = new OutputStreamHolder();
-      var out3 = new OutputStreamHolder();
+      var out = createOutputStream();
+      var out2 = createOutputStream();
+      var out3 = createOutputStream();
       var payload = _.cloneDeep(testDocPayload);
-      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out.writable()))
+      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -179,7 +212,7 @@ describe('LowlaAdapter', function() {
           output[1].b.should.equal(2);
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 11, b: 22 }};
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2));
         }).then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -191,7 +224,7 @@ describe('LowlaAdapter', function() {
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 33, b: 66 }};
           newPayload.documents[0]._lowla.version=1;
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out3.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out3));
         })
         .then(function(result) {
           should.exist(result);
@@ -207,9 +240,9 @@ describe('LowlaAdapter', function() {
     });
 
     it('uses a custom conflict handler', function() {
-      var out = new OutputStreamHolder();
-      var out2 = new OutputStreamHolder();
-      var out3 = new OutputStreamHolder();
+      var out = createOutputStream();
+      var out2 = createOutputStream();
+      var out3 = createOutputStream();
       var payload = _.cloneDeep(testDocPayload);
       lowlaDb.setConflictHandler(function(docSent, docCurrent, resolve){
         console.log("Conflict occurred:");
@@ -222,7 +255,7 @@ describe('LowlaAdapter', function() {
           resolve();
         });
       });
-      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out.writable()))
+      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -233,7 +266,7 @@ describe('LowlaAdapter', function() {
           output[1].b.should.equal(2);
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 11, b: 22 }};
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out2));
         }).then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -245,7 +278,7 @@ describe('LowlaAdapter', function() {
           var newPayload = _.cloneDeep(testDocPayload);
           newPayload.documents[0].ops = { $set: { a: 33, b: 66 }};
           newPayload.documents[0]._lowla.version=1;
-          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out3.writable()));
+          return lowlaDb.pushWithPayload(newPayload, lowlaDb.createResultHandler(out3));
         })
         .then(function(result) {
           should.exist(result);
@@ -263,9 +296,9 @@ describe('LowlaAdapter', function() {
     });
 
     it('should delete an existing doc', function(done) {
-      var out = new OutputStreamHolder();
-      var out2 = new OutputStreamHolder();
-      lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out.writable()))
+      var out = createOutputStream();
+      var out2 = createOutputStream();
+      lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function(result) {
           result.length.should.equal(1);
           result[0].should.equal('lowladbtest.TestCollection$1234');
@@ -278,7 +311,7 @@ describe('LowlaAdapter', function() {
               }
             }]
           };
-          return lowlaDb.pushWithPayload(newPayload,lowlaDb.createResultHandler(out2.writable()));
+          return lowlaDb.pushWithPayload(newPayload,lowlaDb.createResultHandler(out2));
         })
         .then(function(result) {
           result.length.should.equal(1);
@@ -305,12 +338,12 @@ describe('LowlaAdapter', function() {
     it('should push a date', function () {
 
       var msDate = 132215400000;
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
 
       var payload = _.cloneDeep(testDocPayload);
       payload.documents[0].ops.$set.date = {_bsonType: 'Date', millis: msDate };
 
-      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out.writable()))
+      return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out))
         .then(function (result) {
           should.exist(result);
           result.length.should.equal(1);
@@ -336,14 +369,14 @@ describe('LowlaAdapter', function() {
 
 
     it('should push a binary', function () {
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       var payload = _.cloneDeep(testDocPayload);
       var bin;
       return util.readFile('test.png').then(function(filedata) {
         bin = new Binary(filedata);
         payload.documents[0].ops.$set.bin = {_bsonType: 'Binary', encoded: bin.toString('base64') };
       }).then(function(){
-        return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out.writable()))
+        return lowlaDb.pushWithPayload(payload, lowlaDb.createResultHandler(out))
           .then(function (result) {
             should.exist(result);
             result.length.should.equal(1);
@@ -370,14 +403,44 @@ describe('LowlaAdapter', function() {
 
   });
 
-  describe('Pull', function() {
+  describe('pull', function() {  //full route tests adapter.pull(req, res, next) -- see pullWithPayload tests for more detailed tests
+
+    it('should return a test document', function () {
+      var newDoc = {_id: '1234', _version: 1, a: 1, b: 2 };
+      return util.mongo.insertDocs(_db, "TestCollection", newDoc)
+        .then(function () {
+          var res = createMockResponse();
+          var req = createMockRequest([]);
+          var next = function () {
+            throw new Error('Push handler shouldn\'t be calling next()')
+          }
+          return lowlaDb.pull(req, res, next)
+            .then(function (result) {
+              result.should.have.length.greaterThan(0);
+              var body = res.getBody();
+              body.should.have.length.of(2)
+              body[0].id.should.equal('lowladbtest.TestCollection$1234');
+              body[0].version.should.equal(1);
+              body[0].clientNs.should.equal('lowladbtest.TestCollection');
+              body[1].a.should.equal(1);
+              body[1].b.should.equal(2);
+              body[1]._version.should.equal(1);
+              res.headers.should.have.property('Cache-Control');
+              res.headers.should.have.property('Content-Type');
+            })
+        });
+    });
+
+  });
+
+  describe('pullWithPayload', function() {
 
     it('should return a test document', function () {
       var newDoc = {_id:'1234', _version:1, a:1, b:2 };
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       return util.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function(){
-          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out.writable()))
+          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
               result.should.have.length.greaterThan(0);
               var output = out.getOutput();
@@ -397,10 +460,10 @@ describe('LowlaAdapter', function() {
       for(i=0; i<=9; i++){
         docs.push({_id:'1234'+i, _version:i, a:1000+i, b:2000+i });
       }
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       return util.mongo.insertDocs(_db, "TestCollection", docs)
         .then(function(){
-          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out.writable()))
+          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
               should.exist(result);
               result.should.have.length.greaterThan(0);
@@ -432,10 +495,10 @@ describe('LowlaAdapter', function() {
           payload.ids.push('lowladbtest.TestCollection$1234'+i);
         }
       }
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       return util.mongo.insertDocs(_db, "TestCollection", docs)
         .then(function(){
-          return lowlaDb.pullWithPayload(payload, lowlaDb.createResultHandler(out.writable()))
+          return lowlaDb.pullWithPayload(payload, lowlaDb.createResultHandler(out))
             .then(function (result) {
               result.length.should.equal(5);
 
@@ -459,10 +522,10 @@ describe('LowlaAdapter', function() {
     it("should pull a date", function(){
       var msDate = 132215400000;
       var newDoc = { _id: '1234', a: 1, _version:1, date: new Date(msDate) };
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       return util.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function(){
-          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out.writable()))
+          return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
               result.should.have.length.greaterThan(0);
               var output = out.getOutput();
@@ -477,7 +540,7 @@ describe('LowlaAdapter', function() {
     });
 
     it('should pull a binary', function () {
-      var out = new OutputStreamHolder();
+      var out = createOutputStream();
       var bin;
       var doc = { _id: '1234', a: 1, _version: 1};
       return util.readFile('test.png').then(function (filedata) {
@@ -486,7 +549,7 @@ describe('LowlaAdapter', function() {
       }).then(function () {
         return util.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
-            return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out.writable()))
+            return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
               .then(function (result) {
                 result.should.have.length.greaterThan(0);
                 var output = out.getOutput();
@@ -505,17 +568,30 @@ describe('LowlaAdapter', function() {
 
   //util
 
-  var OutputStreamHolder = function(){
+  var createOutputStream = function(){
     var out = '';
     var Writable = require('stream').Writable;
-    var ws = Writable();
-    ws._write = function (chunk, enc, next) {
+    var outStream = Writable();
+    outStream._write = function (chunk, enc, next) {
       out += chunk;
       next();
     };
+    outStream.getOutput = function(){return(JSON.parse(out)) };
+    return outStream;
+  }
+
+  var createMockResponse = function(){
+    var mockResponse = createOutputStream();
+    mockResponse.headers = {};
+    mockResponse.getBody = mockResponse.getOutput;
+    mockResponse.setHeader = function(header, value){this.headers[header] = value;};
+    return mockResponse;
+  }
+
+  var createMockRequest = function(headers, body){
     return {
-      writable:function(){return ws;},
-      getOutput:function(){return(JSON.parse(out));}
+      headers:headers,
+      body:body
     }
   }
 
