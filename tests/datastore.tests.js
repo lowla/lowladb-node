@@ -4,6 +4,7 @@ var _prom = require('../lib/promiseImpl.js');
 var Datastore = require('../lib/datastore/datastore.js').Datastore;
 var util = require('./testUtil');
 var Binary = require('mongodb').Binary;
+var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
 
 
 util.enableLongStackSupport();
@@ -267,7 +268,7 @@ describe('Datastore', function () {
                 b: 5
               }
             };
-            return _ds.updateDocumentByOperations('TestCollection', docs[0]._id, docs[0]._version, ops);
+            return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
           }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
@@ -323,7 +324,7 @@ describe('Datastore', function () {
               }
             };
             ops = _ds.decodeSpecialTypes(ops);
-            return _ds.updateDocumentByOperations('TestCollection', docs[0]._id, docs[0]._version, ops);
+            return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
           }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
@@ -358,7 +359,7 @@ describe('Datastore', function () {
         }
       };
       var ObjectID = require('mongodb').ObjectID;
-      return _ds.updateDocumentByOperations('TestCollection', new ObjectID(), undefined, ops)
+      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
         .then(function (newDoc) {
           newDoc.a.should.equal(98);
           newDoc.b.should.equal(7);
@@ -387,7 +388,7 @@ describe('Datastore', function () {
               b: 5
             }
           };
-          return _ds.updateDocumentByOperations('TestCollection', docs[0]._id, docs[0]._version,  ops);
+          return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version,  ops);
         }).then(function(newDoc){
           newDoc.a.should.equal(99);
           newDoc.b.should.equal(5);
@@ -417,7 +418,7 @@ describe('Datastore', function () {
               b: 5
             }
           };
-          return _ds.updateDocumentByOperations('TestCollection', docs[0]._id, oldVers,  ops);
+          return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), oldVers,  ops);
         }).then(function(newDoc){
           should.not.exist(newDoc);
           return util.mongo.findDocs(_db, 'TestCollection', {});
@@ -434,7 +435,7 @@ describe('Datastore', function () {
           return util.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs){
           docs.length.should.equal(1);
-          return _ds.removeDocument('TestCollection', docs[0]._id)
+          return _ds.removeDocument(createLowlaId('TestCollection', docs[0]._id))
         }).then(function(numRemoved){
           //numRemoved.should.equal(1);
           return util.mongo.findDocs(_db, 'TestCollection', {});
@@ -462,7 +463,7 @@ describe('Datastore', function () {
       return util.mongo.getIds(_db, 'TestCollection')
         .then(function (ids) {
           id=ids[2];
-          return _ds.getDocument('TestCollection', ids[2]);
+          return _ds.getDocument(createLowlaId('TestCollection', ids[2]));
         })
         .then(function (doc) {
           doc.name.should.equal('TestCollection_3');
@@ -492,8 +493,8 @@ describe('Datastore', function () {
         var collections = {};
         for (i = 0; i < docs.length; i++) {
           docs.length.should.equal(30)
-          collections[docs[i].collection]=true;
-          docs[i].doc.name.should.equal(docs[i].collection + "_" + docs[i].doc.a)
+          collections[docs[i].lowlaId.collectionName]=true;
+          docs[i].doc.name.should.equal(docs[i].lowlaId.collectionName + "_" + docs[i].doc.a)
         }
         collections["TestCollection"].should.be.true;
         collections["TestCollection2"].should.be.true;
@@ -505,6 +506,12 @@ describe('Datastore', function () {
   });
 
   //util
+  var createLowlaId = function(collectionName, id){
+    var lowlaId = new LowlaId();
+    lowlaId.fromComponents(_db.databaseName, collectionName, id);
+    return lowlaId;
+  }
+
 
   var createResultHandler = function(){
     var startCalled = 0;
@@ -516,9 +523,9 @@ describe('Datastore', function () {
         endCalled.should.be.lessThan(1);
         ++startCalled
       },
-      write: function (dbName, collectionName, doc, deleted) {
+      write: function (lowlaId, doc, deleted) {
         startCalled.should.be.greaterThan(0);
-        documents.push({db:dbName, collection:collectionName, deleted:deleted, doc:doc})
+        documents.push({lowlaId: lowlaId, deleted:deleted, doc:doc})
         ++writeCalled;
       },
       end: function(){

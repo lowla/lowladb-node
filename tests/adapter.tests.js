@@ -114,10 +114,6 @@ describe('LowlaAdapter', function() {
       ds.updateDocumentByOperations = function(){return new _prom.promise(function(resolve, reject){foo(); resolve(true);} ) };
       return lowlaDb.push(req, res, next)
         .then(function (result) {
-          console.log(res.getBodyAsText());
-          console.log(logs);
-          console.log(result);
-
           should.exist(result);
           result.should.be.error;
           should.exist(logs['error']);
