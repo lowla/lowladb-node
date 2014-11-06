@@ -9,14 +9,18 @@ var Binary = require('mongodb').Binary;
 util.enableLongStackSupport();
 
 var _db;
-var _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest'});
+var _ds;
+var nonOp = function(){};
 
 describe('Datastore', function () {
 
   before(function (done) {
-    util.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
-      _db = db;
-      done();
+    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger:{log:nonOp, debug:nonOp, info:nonOp, warn:nonOp, error:nonOp}});
+    _ds.ready.then(function() {
+      util.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
+        _db = db;
+        done();
+      });
     });
   });
 

@@ -42,14 +42,25 @@ describe('LowlaAdapter', function() {
 //    done();
 //  });
 
+  var logs = {};
+  var logF = function(level){
+    return function(){
+      if(!logs[level]){
+        logs[level] = [];
+      }
+      logs[level].push(arguments);
+    };
+  };
+
   before(function(done){
-    lowlaDb = new LowlaAdapter({mongoUrl: 'mongodb://127.0.0.1/lowladbtest'});
+    lowlaDb = new LowlaAdapter({mongoUrl: 'mongodb://127.0.0.1/lowladbtest', logger:{log:logF('log'), debug:logF('debug'), info:logF('info'), warn:logF('warn'), error:logF('error')} });
     done();
   });
 
   beforeEach(function(done) {
     // TODO - use environment var to define test DB?
-
+    // Clear logs
+    logs = {};
     // Clear out the test collection before each test
     return lowlaDb.ready.then(function(){
       _db = lowlaDb.config.datastore.config.db;
@@ -60,10 +71,7 @@ describe('LowlaAdapter', function() {
       testColl = testCollection;
       done();
     });
-
   });
-
-
 
   describe('push', function() {   //full route tests adapter.push(req, res, next) -- see pushWithPayload tests for more detailed tests
 
@@ -91,6 +99,36 @@ describe('LowlaAdapter', function() {
           res.headers.should.have.property('Cache-Control');
           res.headers.should.have.property('Content-Type');
           return true;
+        });
+    });
+
+    it('Should return an error for error thrown after stream is open', function () {  //programmer error
+
+      var res = createMockResponse();
+      var req = createMockRequest([], testDocPayload);
+      var next = function () {
+        throw new Error('Push handler shouldn\'t be calling next()')
+      }
+      var ds = lowlaDb.config.datastore;
+      var dsFunc = ds.updateDocumentByOperations;
+      ds.updateDocumentByOperations = function(){return new _prom.promise(function(resolve, reject){foo(); resolve(true);} ) };
+      return lowlaDb.push(req, res, next)
+        .then(function (result) {
+          console.log(res.getBodyAsText());
+          console.log(logs);
+          console.log(result);
+
+          should.exist(result);
+          result.should.be.error;
+          should.exist(logs['error']);
+          logs.error[0].should.be.error;
+
+          var body = res.getBody();
+          body[0].error.message.should.equal('foo is not defined');
+
+          return true;
+        }).finally(function(){
+          ds.updateDocumentByOperations = dsFunc;
         });
     });
 
@@ -576,7 +614,8 @@ describe('LowlaAdapter', function() {
       out += chunk;
       next();
     };
-    outStream.getOutput = function(){return(JSON.parse(out)) };
+    outStream.getOutput = function(){return(JSON.parse(out)); };
+    outStream.getOutputAsText = function(){return out; };
     return outStream;
   }
 
@@ -584,6 +623,7 @@ describe('LowlaAdapter', function() {
     var mockResponse = createOutputStream();
     mockResponse.headers = {};
     mockResponse.getBody = mockResponse.getOutput;
+    mockResponse.getBodyAsText = mockResponse.getOutputAsText;
     mockResponse.setHeader = function(header, value){this.headers[header] = value;};
     return mockResponse;
   }
