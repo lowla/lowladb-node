@@ -101,13 +101,11 @@ mongo.prototype.getCollection = function(db, collName){
 
 mongo.prototype.removeCollection = function(db, collName){
   var deferred = _prom.defer();
-  db.collection(collName, function (err, coll) {
+  db.dropCollection(collName, function (err, coll) {
     if (err) {
       deferred.reject(err);
     }
-    coll.remove(function (){
-      deferred.resolve(true);
-    });
+    return deferred.resolve(true);
   });
   return deferred.promise;
 };

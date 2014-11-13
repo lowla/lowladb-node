@@ -1,13 +1,14 @@
 var chai = require('chai');
 var should = chai.should();
 chai.use(require('chai-things'));
+var sinon = require('sinon');
 var _ = require('lodash');
 var _prom = require('../lib/promiseImpl.js');
 var LowlaAdapter = require('../lib/adapter.js').LowlaAdapter;
 var testUtil = require('./testUtil');
 var util = require('util');
 var Binary = require('mongodb').Binary;
-var sinon = require('sinon');
+
 
 testUtil.enableLongStackSupport();
 

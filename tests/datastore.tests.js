@@ -1,9 +1,10 @@
-var should = require('chai').should();
+var chai = require('chai');
+var should = chai.should();
+chai.use(require('chai-things'));
+var sinon = require('sinon');
 var _ = require('lodash');
-var _prom = require('../lib/promiseImpl.js');
 var Datastore = require('../lib/datastore/datastore.js').Datastore;
 var testUtil = require('./testUtil');
-var util = require('util');
 var Binary = require('mongodb').Binary;
 var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
 
@@ -17,7 +18,7 @@ var _ds;
 describe('Datastore', function () {
 
   before(function (done) {
-    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger:testUtil.NullLogger});
+    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger: console }); //testUtil.NullLogger});
     _ds.ready.then(function() {
       testUtil.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
         _db = db;
@@ -48,7 +49,7 @@ describe('Datastore', function () {
       return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
         .then(function () {
           return testUtil.mongo.findDocs(_db, 'TestCollection', {});
-         }).then(function (docs) {
+        }).then(function (docs) {
           var d = docs[0];
           d = _ds.encodeSpecialTypes(d);
           var date = d.date;
@@ -64,10 +65,10 @@ describe('Datastore', function () {
     it('decodes a date', function () {
       var msDate = 132215400000;
       var doc = { _id: '1234', a: 1, _version:1, date: {_bsonType: 'Date', millis: 132215400000 }};
-          var d = _ds.decodeSpecialTypes(doc);
-          var date = d.date;
-          date.should.be.instanceOf(Date);
-          date.getTime().should.equal(msDate);
+      var d = _ds.decodeSpecialTypes(doc);
+      var date = d.date;
+      date.should.be.instanceOf(Date);
+      date.getTime().should.equal(msDate);
     });
 
     it('encodes embedded docs containing dates', function () {
@@ -113,7 +114,7 @@ describe('Datastore', function () {
 
     it('decodes embedded docs containing dates', function () {
       var msDate = 132215400000;
-      var dateField = {_bsonType: 'Date', millis: 132215400000 }
+      var dateField = {_bsonType: 'Date', millis: 132215400000 };
       var doc = { _id: '1234', a: 1, _version: 1,
         date: dateField,
         embed1:{ a: 1, date: dateField,
@@ -182,7 +183,7 @@ describe('Datastore', function () {
     it('decodes embedded docs containing binaries (image)', function () {
       return testUtil.readFile('test.png').then(function(filedata) {
         var bin = new Binary(filedata);
-        var binField = { _bsonType: 'Binary', type: 0, encoded: bin.toString('base64') }
+        var binField = { _bsonType: 'Binary', type: 0, encoded: bin.toString('base64') };
         var doc = { _id: '1234', a: 1, _version: 1,
           val: binField,
           embed1:{ a: 1, val: binField,
@@ -217,7 +218,6 @@ describe('Datastore', function () {
     it('encodes embedded docs containing binaries (image)', function () {
       return testUtil.readFile('test.png').then(function(filedata){
         var bin = new Binary(filedata);
-        var binx = new Binary("this is crap");
         var doc = { _id: '1234', a: 1, _version:1, val:bin, embed1:{a: 1, val:bin, embed2:{a: 1, val:bin, embed3:{a: 1, val:bin}}}, end:true};
         return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
@@ -374,6 +374,23 @@ describe('Datastore', function () {
         });
     });
 
+    it('rejects updates without IDs', function(){
+      var ops = {
+        $set: {
+          a: 98,
+          b: 7
+        }
+      };
+      var lowlaId = createLowlaId('TestCollection', '123');
+      delete lowlaId.id;
+      return _ds.updateDocumentByOperations(lowlaId, undefined, ops)
+        .then(function (newDoc) {
+          should.not.exist(newDoc);
+        }, function(err){
+          err.message.should.equal('Datastore.updateDocumentByOperations: id must be specified')
+        })
+    });
+
     it('modifies a document', function () {
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("foo", 1))
         .then(function() {
@@ -474,35 +491,291 @@ describe('Datastore', function () {
     });
 
     it('gets all docs from all collections', function () {
-
-      h = createResultHandler();
+      var h = createResultHandler();
       h.start();
-
       return _ds.getAllDocuments(h).then(function (result) {
-
         h.end();
-
         result.length.should.equal(3);
-
         for (i in result) {
           result[i].sent.should.equal(10);
           ["lowladbtest.TestCollection",
             "lowladbtest.TestCollection2",
             "lowladbtest.TestCollection3"].should.include(result[i].namespace);
         }
-
         var results = h.getResults();
         var collections = {};
         for (i = 0; i < results.length; i++) {
-          results.length.should.equal(30)
+          results.length.should.equal(30);
           collections[results[i].lowlaId.collectionName]=true;
           results[i].doc.name.should.equal(results[i].lowlaId.collectionName + "_" + results[i].doc.a)
         }
         collections["TestCollection"].should.be.true;
         collections["TestCollection2"].should.be.true;
         collections["TestCollection3"].should.be.true;
+      });
     });
 
+  });
+
+  describe('Basics', function(){
+
+    it('gets collection names', function(){
+      return testUtil.mongo.insertDocs(_db, "aCollection", testUtil.createDocs("TestCollection_", 1))
+        .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
+        .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
+        .then(function () {
+          return _ds.getCollectionNames().then(function(names){
+            should.exist(names);
+            names.length.should.equal(3);
+            names.should.contain('aCollection');
+            names.should.contain('bCollection');
+            names.should.contain('cCollection');
+          });
+        });
+    });
+
+    it('gets a collection promise', function(){
+      return _ds.getCollection("TestCollection").then(function(collection){
+        should.exist(collection);
+        collection.db.databaseName.should.equal(_ds.config.db.databaseName);
+        collection.collectionName.should.equal('TestCollection');
+      });
+    });
+
+    it('finds in collection', function(){
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          return _ds.findInCollection('TestCollection', {a:2})
+            .then(function(cursor){
+              return _ds.cursorToArray(cursor);
+            }).then(function(docs){
+              console.log(docs);
+            });
+        })
+    });
+
+    it('streams a cursor', function(){
+      var h = createResultHandler();
+      h.start();
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          return _ds.findInCollection('TestCollection', {})
+            .then(function(cursor){
+              return _ds.streamCursor(cursor, 'TestCollection', h);
+            }).then(function(res){
+              h.end();
+              var results = h.getResults();
+              console.log(results);
+              results.length.should.equal(3);
+              results.should.all.have.property('lowlaId');
+              results.should.all.have.property('deleted');
+              results.should.all.have.property('doc');
+            });
+        })
+    });
+
+  });
+
+  describe('Error Handling', function(){
+
+    afterEach(function(){
+      sinon.sandbox.restore();
+    });
+
+    it('handles cb->err in getCollectionNames', function(){
+      sinon.sandbox.stub(_ds.config.db, 'collectionNames', function(callback){
+        callback(Error("Error loading collectionNames"), null)
+      });
+      return testUtil.mongo.insertDocs(_db, "aCollection", testUtil.createDocs("TestCollection_", 1))
+        .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
+        .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
+        .then(function () {
+          return _ds.getCollectionNames().then(function(names) {
+            should.not.exist(names);
+          }, function(err){
+            err.message.should.equal('Error loading collectionNames')
+          });
+        });
+    });
+
+    it('catches throw in getCollectionNames', function(){
+      sinon.sandbox.stub(_ds.config.db, 'collectionNames').throws(Error('Error loading collectionNames'));
+      return testUtil.mongo.insertDocs(_db, "aCollection", testUtil.createDocs("TestCollection_", 1))
+        .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
+        .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
+        .then(function () {
+          return _ds.getCollectionNames().then(function(names) {
+            should.not.exist(names);
+          }, function(err){
+            err.message.should.equal('Error loading collectionNames')
+          });
+        });
+    });
+
+    it('handles cb->err in getCollection', function(){
+      sinon.sandbox.stub(_ds.config.db, 'collection', function(name, callback){
+        callback(Error("Error loading collection"), null)
+      });
+      return _ds.getCollection("TestCollection").then(function(collection){
+        should.not.exist(collection);
+      }, function(err){
+        err.message.should.equal('Error loading collection')
+      });
+    });
+
+    it('catches throw in getCollection', function(){
+      sinon.sandbox.stub(_ds.config.db, 'collection').throws(Error('Error loading collection'));
+      return _ds.getCollection("TestCollection").then(function(collection){
+        should.not.exist(collection);
+      }, function(err){
+        err.message.should.equal('Error loading collection')
+      });
+    });
+
+    it('handles cb->err in updateByOperations', function(){
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'findAndModify', function(query, sort, updateOps, opts, callback){
+          callback(Error("findAndModify returns callback error"), null)
+        });
+      });
+      var ops = {
+        $set: {
+          a: 98,
+          b: 7
+        }
+      };
+      var ObjectID = require('mongodb').ObjectID;
+      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
+        .then(function (newDoc) {
+          should.not.exist(newDoc);
+        }, function(err){
+          err.message.should.equal('findAndModify returns callback error')
+        })
+    });
+
+    it('catches throw in updateByOperations', function(){
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'findAndModify').throws(new Error('findAndModify throws'));
+      });
+      var ops = {
+        $set: {
+          a: 98,
+          b: 7
+        }
+      };
+      var ObjectID = require('mongodb').ObjectID;
+      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
+        .then(function (newDoc) {
+          should.not.exist(newDoc);
+        }, function(err){
+          err.message.should.equal('findAndModify throws');
+        })
+    });
+
+    it('catches throw in removeDocument', function () {
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'remove').throws(new Error('remove throws'));
+      });
+      return _ds.removeDocument(createLowlaId('TestCollection', '123'))
+        .then(function(numRemoved){
+          should.not.exist(numRemoved);
+        }, function(err){
+          err.message.should.equal('remove throws');
+        })
+    });
+
+    it('handles cb->err in removeDocument', function () {
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'remove', function(id, callback){
+          callback(Error("remove returns callback error"), null)
+        });
+      });
+
+      return _ds.removeDocument(createLowlaId('TestCollection', '123'))
+        .then(function(numRemoved){
+          should.not.exist(numRemoved);
+        }, function(err){
+          err.message.should.equal('remove returns callback error');
+        })
+    });
+
+    it('catches throw in findInCollection', function(){
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'find').throws(new Error('find throws'));
+      });
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          return _ds.findInCollection('TestCollection', {a:2})
+            .then(function(cursor){
+              should.not.exist(cursor);
+            }, function(err){
+              err.message.should.equal('find throws');
+            });
+        })
+    });
+
+    it('handles cb->err in findInCollection', function(){
+      hookGetCollectionCall(function (collection) {
+        sinon.sandbox.stub(collection, 'find', function(id, callback){
+          callback(Error("find returns callback error"), null)
+        });
+      });
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          return _ds.findInCollection('TestCollection', {a:2})
+            .then(function(cursor){
+              should.not.exist(cursor);
+            }, function(err){
+              err.message.should.equal('find returns callback error');
+            });
+        })
+    });
+
+    it('catches throw in streamCursor', function(){
+      var h = createResultHandler();
+      h.start();
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          return _ds.findInCollection('TestCollection', {})
+            .then(function(cursor){
+              sinon.sandbox.stub(cursor, 'stream').throws(new Error('cursor.stream error'));
+              return _ds.streamCursor(cursor, 'TestCollection', h);
+            }).then(function(result){
+              should.not.exist(result);
+            }, function(err){
+              err.message.should.equal("cursor.stream error");
+            });
+        })
+    });
+
+    it('catches throw in getAllDocuments', function(){
+      var h = createResultHandler();
+      h.start();
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          sinon.sandbox.stub(_ds, 'streamCursor').throws(new Error('cursor.stream error'));
+          return _ds.getAllDocuments(h)
+            .then(function(result){
+              should.not.exist(result);
+            }, function(err){
+              err.message.should.equal("cursor.stream error");
+            });
+        })
+    });
+
+    it('catches throw in getAllDocuments', function(){
+      var h = createResultHandler();
+      h.start();
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
+        .then(function(){
+          sinon.sandbox.stub(_ds, 'findInCollection').throws(new Error('findInCollection error'));
+          return _ds.getAllDocuments(h)
+            .then(function(result){
+              should.not.exist(result);
+            }, function(err){
+              err.message.should.equal("findInCollection error");
+            });
+        })
     });
 
   });
@@ -514,10 +787,19 @@ describe('Datastore', function () {
     return lowlaId;
   };
 
+  var hookGetCollectionCall = function(fnHook){
+    var origFunction = _ds.getCollection;
+    sinon.sandbox.stub(_ds, 'getCollection', function (collectionName) {
+      return origFunction.call(_ds, collectionName).then(function(collection){
+        fnHook(collection);
+        return collection;
+      });
+    });
+  };
 
   var createResultHandler = function(){
     var startCalled = 0;
-    var endCalled = 0
+    var endCalled = 0;
     var writeCalled = 0;
     var results = [];
     return {
@@ -527,7 +809,7 @@ describe('Datastore', function () {
       },
       write: function (lowlaId, version, deleted, doc) {
         startCalled.should.be.greaterThan(0);
-        results.push({lowlaId: lowlaId, deleted:deleted, doc:doc})
+        results.push({lowlaId: lowlaId, deleted:deleted, doc:doc});
         ++writeCalled;
       },
       end: function(){
@@ -539,7 +821,9 @@ describe('Datastore', function () {
         return results;
       }
     }
-  }
+  };
+
+
 
 
 });
