@@ -2,23 +2,24 @@ var should = require('chai').should();
 var _ = require('lodash');
 var _prom = require('../lib/promiseImpl.js');
 var Datastore = require('../lib/datastore/datastore.js').Datastore;
-var util = require('./testUtil');
+var testUtil = require('./testUtil');
+var util = require('util');
 var Binary = require('mongodb').Binary;
 var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
 
 
-util.enableLongStackSupport();
+testUtil.enableLongStackSupport();
 
 var _db;
 var _ds;
-var nonOp = function(){};
+
 
 describe('Datastore', function () {
 
   before(function (done) {
-    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger:{log:nonOp, debug:nonOp, info:nonOp, warn:nonOp, error:nonOp}});
+    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger:testUtil.NullLogger});
     _ds.ready.then(function() {
-      util.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
+      testUtil.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
         _db = db;
         done();
       });
@@ -33,7 +34,7 @@ describe('Datastore', function () {
   });
 
   beforeEach(function (done) {
-    util.mongo.removeAllCollections(_db)
+    testUtil.mongo.removeAllCollections(_db)
       .then(function () {
         return done();
       })
@@ -44,9 +45,9 @@ describe('Datastore', function () {
     it('encodes a date', function () {
       var msDate = 132215400000;
       var doc = { _id: '1234', a: 1, _version:1, date: new Date(msDate)};
-      return util.mongo.insertDocs(_db, "TestCollection", doc)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
         .then(function () {
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
          }).then(function (docs) {
           var d = docs[0];
           d = _ds.encodeSpecialTypes(d);
@@ -80,9 +81,9 @@ describe('Datastore', function () {
         },
         end:true
       };
-      return util.mongo.insertDocs(_db, "TestCollection", doc)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
         .then(function () {
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function (docs) {
           var d = docs[0];
           d = _ds.encodeSpecialTypes(d);
@@ -150,7 +151,7 @@ describe('Datastore', function () {
     });
 
     it('decodes a binary (image)', function () {
-      return util.readFile('test.png').then(function(filedata) {
+      return testUtil.readFile('test.png').then(function(filedata) {
         var bin = new Binary(filedata);
         var doc = { _id: '1234', a: 1, _version: 1, val: { _bsonType: 'Binary', type: 0, encoded: bin.toString('base64') }};
         var d = _ds.decodeSpecialTypes(doc);
@@ -162,12 +163,12 @@ describe('Datastore', function () {
     });
 
     it('encodes a binary (image)', function () {
-      return util.readFile('test.png').then(function(filedata){
+      return testUtil.readFile('test.png').then(function(filedata){
         var bin = new Binary(filedata);
         var doc = { _id: '1234', a: 1, _version:1, val:bin};
-        return util.mongo.insertDocs(_db, "TestCollection", doc)
+        return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
             var d = _ds.encodeSpecialTypes(docs[0]);
             d.val.should.have.property('_bsonType');
@@ -179,7 +180,7 @@ describe('Datastore', function () {
     });
 
     it('decodes embedded docs containing binaries (image)', function () {
-      return util.readFile('test.png').then(function(filedata) {
+      return testUtil.readFile('test.png').then(function(filedata) {
         var bin = new Binary(filedata);
         var binField = { _bsonType: 'Binary', type: 0, encoded: bin.toString('base64') }
         var doc = { _id: '1234', a: 1, _version: 1,
@@ -214,13 +215,13 @@ describe('Datastore', function () {
     });
 
     it('encodes embedded docs containing binaries (image)', function () {
-      return util.readFile('test.png').then(function(filedata){
+      return testUtil.readFile('test.png').then(function(filedata){
         var bin = new Binary(filedata);
         var binx = new Binary("this is crap");
         var doc = { _id: '1234', a: 1, _version:1, val:bin, embed1:{a: 1, val:bin, embed2:{a: 1, val:bin, embed3:{a: 1, val:bin}}}, end:true};
-        return util.mongo.insertDocs(_db, "TestCollection", doc)
+        return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
             var d = _ds.encodeSpecialTypes(docs[0]);
             d.val.should.have.property('_bsonType');
@@ -245,13 +246,13 @@ describe('Datastore', function () {
 
     it("modifies a document but not it's binary", function () {
       var bin;
-      return util.readFile('test.txt').then(function (filedata) {
+      return testUtil.readFile('test.txt').then(function (filedata) {
         bin = new Binary(filedata);
       }).then(function () {
         var doc = { _id: '1234', a: 1, b: 2, _version: 1, val: bin};
-        return util.mongo.insertDocs(_db, "TestCollection", doc)
+        return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
             docs.length.should.equal(1);
             var d = docs[0];
@@ -269,15 +270,14 @@ describe('Datastore', function () {
               }
             };
             return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
-          }).then(function (result) {
-            var newDoc  = result.document;
+          }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
             newDoc.val.should.have.property('_bsontype');
             newDoc.val.should.have.property('buffer');
             newDoc.val._bsontype.should.equal('Binary');
             newDoc.val.toString('base64').should.equal(bin.toString('base64'));
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
 
             docs.length.should.equal(1);
@@ -296,17 +296,17 @@ describe('Datastore', function () {
     it("modifies a document and it's binary", function () {
       var bin;
       var bin2;
-      return util.readFile('test.txt').then(function (filedata) {
+      return testUtil.readFile('test.txt').then(function (filedata) {
         bin = new Binary(filedata);
       }).then(function () {
-        return util.readFile('test.png').then(function (filedata) {
+        return testUtil.readFile('test.png').then(function (filedata) {
           bin2 = new Binary(filedata);
         });
       }).then(function () {
         var doc = { _id: '1234', a: 1, b: 2, _version: 1, val: bin};
-        return util.mongo.insertDocs(_db, "TestCollection", doc)
+        return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
             docs.length.should.equal(1);
             var d = docs[0];
@@ -326,15 +326,14 @@ describe('Datastore', function () {
             };
             ops = _ds.decodeSpecialTypes(ops);
             return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
-          }).then(function (result) {
-            var newDoc  = result.document;
+          }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
             newDoc.val.should.have.property('_bsontype');
             newDoc.val.should.have.property('buffer');
             newDoc.val._bsontype.should.equal('Binary');
             newDoc.val.toString('base64').should.equal(bin2.toString('base64'));
-            return util.mongo.findDocs(_db, 'TestCollection', {});
+            return testUtil.mongo.findDocs(_db, 'TestCollection', {});
           }).then(function (docs) {
 
             docs.length.should.equal(1);
@@ -362,11 +361,10 @@ describe('Datastore', function () {
       };
       var ObjectID = require('mongodb').ObjectID;
       return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
-        .then(function (result) {
-          var newDoc  = result.document;
+        .then(function (newDoc) {
           newDoc.a.should.equal(98);
           newDoc.b.should.equal(7);
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
 
         }).then(function (docs) {
           docs.length.should.equal(1);
@@ -377,9 +375,9 @@ describe('Datastore', function () {
     });
 
     it('modifies a document', function () {
-      return util.mongo.insertDocs(_db, "TestCollection", util.createDocs("foo", 1))
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("foo", 1))
         .then(function() {
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs){
           docs.length.should.equal(1);
           docs[0].a.should.equal(1);
@@ -392,11 +390,10 @@ describe('Datastore', function () {
             }
           };
           return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version,  ops);
-        }).then(function(result){
-          var newDoc  = result.document;
+        }).then(function(newDoc){
           newDoc.a.should.equal(99);
           newDoc.b.should.equal(5);
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs) {
           docs.length.should.equal(1);
           docs[0].a.should.equal(99);
@@ -405,11 +402,11 @@ describe('Datastore', function () {
     });
 
     it('creates a conflict', function () {  //TODO conflict not handled, update ignored
-      var seeds = util.createDocs("foo", 1);
+      var seeds = testUtil.createDocs("foo", 1);
       seeds[0]._version=2;
-      return util.mongo.insertDocs(_db, "TestCollection", seeds)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", seeds)
         .then(function() {
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs){
           docs.length.should.equal(1);
           docs[0].a.should.equal(1);
@@ -423,10 +420,10 @@ describe('Datastore', function () {
             }
           };
           return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), oldVers,  ops);
-        }).then(function(result){
+        }).then(null, function(result){
           result.isConflict.should.be.true;
           should.not.exist(result.document);
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs) {
           docs.length.should.equal(1);
           docs[0].a.should.equal(1);
@@ -435,15 +432,15 @@ describe('Datastore', function () {
     });
 
     it('deletes a document', function () {
-      return util.mongo.insertDocs(_db, "TestCollection", util.createDocs("foo", 1))
+      return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("foo", 1))
         .then(function() {
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs){
           docs.length.should.equal(1);
           return _ds.removeDocument(createLowlaId('TestCollection', docs[0]._id))
         }).then(function(numRemoved){
           //numRemoved.should.equal(1);
-          return util.mongo.findDocs(_db, 'TestCollection', {});
+          return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs) {
           docs.length.should.equal(0);
         });
@@ -455,9 +452,9 @@ describe('Datastore', function () {
   describe('Retrieves documents', function () {
 
     beforeEach(function (done) {
-      util.mongo.insertDocs(_db, "TestCollection", util.createDocs("TestCollection_", 10))
-        .then(util.mongo.insertDocs(_db, "TestCollection2", util.createDocs("TestCollection2_", 10)))
-        .then(util.mongo.insertDocs(_db, "TestCollection3", util.createDocs("TestCollection3_", 10)))
+      testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 10))
+        .then(testUtil.mongo.insertDocs(_db, "TestCollection2", testUtil.createDocs("TestCollection2_", 10)))
+        .then(testUtil.mongo.insertDocs(_db, "TestCollection3", testUtil.createDocs("TestCollection3_", 10)))
         .then(function () {
           done();
         });
@@ -465,13 +462,12 @@ describe('Datastore', function () {
 
     it('gets a doc by id', function () {
       var id;
-      return util.mongo.getIds(_db, 'TestCollection')
+      return testUtil.mongo.getIds(_db, 'TestCollection')
         .then(function (ids) {
           id=ids[2];
           return _ds.getDocument(createLowlaId('TestCollection', ids[2]));
         })
-        .then(function (result) {
-          var doc = result.document;
+        .then(function (doc) {
           doc.name.should.equal('TestCollection_3');
           doc.a.should.equal(3);
         });
@@ -479,7 +475,7 @@ describe('Datastore', function () {
 
     it('gets all docs from all collections', function () {
 
-      h = createResultHandler()
+      h = createResultHandler();
       h.start();
 
       return _ds.getAllDocuments(h).then(function (result) {
@@ -500,7 +496,7 @@ describe('Datastore', function () {
         for (i = 0; i < results.length; i++) {
           results.length.should.equal(30)
           collections[results[i].lowlaId.collectionName]=true;
-          results[i].document.name.should.equal(results[i].lowlaId.collectionName + "_" + results[i].document.a)
+          results[i].doc.name.should.equal(results[i].lowlaId.collectionName + "_" + results[i].doc.a)
         }
         collections["TestCollection"].should.be.true;
         collections["TestCollection2"].should.be.true;
@@ -516,7 +512,7 @@ describe('Datastore', function () {
     var lowlaId = new LowlaId();
     lowlaId.fromComponents(_db.databaseName, collectionName, id);
     return lowlaId;
-  }
+  };
 
 
   var createResultHandler = function(){
@@ -529,9 +525,9 @@ describe('Datastore', function () {
         endCalled.should.be.lessThan(1);
         ++startCalled
       },
-      write: function (result) {
+      write: function (lowlaId, version, deleted, doc) {
         startCalled.should.be.greaterThan(0);
-        results.push(result)
+        results.push({lowlaId: lowlaId, deleted:deleted, doc:doc})
         ++writeCalled;
       },
       end: function(){

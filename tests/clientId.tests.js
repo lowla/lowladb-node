@@ -8,8 +8,8 @@ describe('LowlaId', function(){
     lowlaId.dbName.should.equal('myDb');
     lowlaId.collectionName.should.equal('myCollection');
     lowlaId.id.should.equal('someId');
-    lowlaId.getClientNs().should.equal('myDb.myCollection')
-    lowlaId.getClientId().should.equal('myDb.myCollection$someId')
+    lowlaId.getClientNs().should.equal('myDb.myCollection');
+    lowlaId.getClientId().should.equal('myDb.myCollection$someId');
   }); 
 
   it('parses a client id', function(){
@@ -18,8 +18,8 @@ describe('LowlaId', function(){
     lowlaId.dbName.should.equal('myDb');
     lowlaId.collectionName.should.equal('myCollection');
     lowlaId.id.should.equal('someId');
-    lowlaId.getClientNs().should.equal('myDb.myCollection')
-    lowlaId.getClientId().should.equal('myDb.myCollection$someId')
+    lowlaId.getClientNs().should.equal('myDb.myCollection');
+    lowlaId.getClientId().should.equal('myDb.myCollection$someId');
   });
 
   it('parses a client id with dotted collection names', function(){
@@ -28,8 +28,8 @@ describe('LowlaId', function(){
     lowlaId.dbName.should.equal('myDb');
     lowlaId.collectionName.should.equal('myCollection1.myCollection2.myCollection3');
     lowlaId.id.should.equal('someId');
-    lowlaId.getClientNs().should.equal('myDb.myCollection1.myCollection2.myCollection3')
-    lowlaId.getClientId().should.equal('myDb.myCollection1.myCollection2.myCollection3$someId')
+    lowlaId.getClientNs().should.equal('myDb.myCollection1.myCollection2.myCollection3');
+    lowlaId.getClientId().should.equal('myDb.myCollection1.myCollection2.myCollection3$someId');
   });
 
   it('rejects a client id missing database', function(){
@@ -53,8 +53,8 @@ describe('LowlaId', function(){
     lowlaId.dbName.should.equal('myDb');
     lowlaId.collectionName.should.equal('myCollection');
     lowlaId.id.should.equal('someId');
-    lowlaId.getClientNs().should.equal('myDb.myCollection')
-    lowlaId.getClientId().should.equal('myDb.myCollection$someId')
+    lowlaId.getClientNs().should.equal('myDb.myCollection');
+    lowlaId.getClientId().should.equal('myDb.myCollection$someId');
   });
 
   it('builds an id from components with dotted collection names', function(){
@@ -63,8 +63,8 @@ describe('LowlaId', function(){
     lowlaId.dbName.should.equal('myDb');
     lowlaId.collectionName.should.equal('myCollection1.myCollection2.myCollection3');
     lowlaId.id.should.equal('someId');
-    lowlaId.getClientNs().should.equal('myDb.myCollection1.myCollection2.myCollection3')
-    lowlaId.getClientId().should.equal('myDb.myCollection1.myCollection2.myCollection3$someId')
+    lowlaId.getClientNs().should.equal('myDb.myCollection1.myCollection2.myCollection3');
+    lowlaId.getClientId().should.equal('myDb.myCollection1.myCollection2.myCollection3$someId');
   });
 
   it('rejects a malformed id from components', function(){

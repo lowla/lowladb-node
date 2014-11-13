@@ -1,16 +1,21 @@
-var should = require('chai').should();
+var chai = require('chai');
+var should = chai.should();
+chai.use(require('chai-things'));
 var _ = require('lodash');
 var _prom = require('../lib/promiseImpl.js');
 var LowlaAdapter = require('../lib/adapter.js').LowlaAdapter;
-var util = require('./testUtil');
+var testUtil = require('./testUtil');
+var util = require('util');
 var Binary = require('mongodb').Binary;
+var sinon = require('sinon');
 
-util.enableLongStackSupport();
+testUtil.enableLongStackSupport();
 
 describe('LowlaAdapter', function() {
   var lowlaDb;
   var testColl;
   var _db;
+  var logger;
 
   var testDocPayload = {
     documents: [ {
@@ -42,46 +47,39 @@ describe('LowlaAdapter', function() {
 //    done();
 //  });
 
-  var logs = {};
-  var logF = function(level){
-    return function(){
-      if(!logs[level]){
-        logs[level] = [];
-      }
-      logs[level].push(arguments);
-    };
-  };
+
 
   before(function(done){
-    lowlaDb = new LowlaAdapter({mongoUrl: 'mongodb://127.0.0.1/lowladbtest', logger:{log:logF('log'), debug:logF('debug'), info:logF('info'), warn:logF('warn'), error:logF('error')} });
+    logger = new testUtil.TestLogger();
+    lowlaDb = new LowlaAdapter({mongoUrl: 'mongodb://127.0.0.1/lowladbtest', logger:logger});
     done();
   });
 
   beforeEach(function(done) {
     // TODO - use environment var to define test DB?
     // Clear logs
-    logs = {};
+    logger.reset();
     // Clear out the test collection before each test
     return lowlaDb.ready.then(function(){
       _db = lowlaDb.config.datastore.config.db;
-      return util.mongo.removeAllCollections(_db);
+      return testUtil.mongo.removeAllCollections(_db);
     }).then(function(ret){
-      return util.mongo.getCollection(_db, "TestCollection");
+      return testUtil.mongo.getCollection(_db, "TestCollection");
     }).done(function(testCollection){
       testColl = testCollection;
       done();
     });
   });
 
-  describe('push', function() {   //full route tests adapter.push(req, res, next) -- see pushWithPayload tests for more detailed tests
+  describe('Push', function() {   //full route tests adapter.push(req, res, next) -- see pushWithPayload tests for more detailed tests of adapter behavior
 
-    it('Should return the pushed document', function () {
+    it('should return the pushed document', function () {
 
       var res = createMockResponse();
       var req = createMockRequest([], testDocPayload);
       var next = function () {
         throw new Error('Push handler shouldn\'t be calling next()')
-      }
+      };
 
       return lowlaDb.push(req, res, next)
         .then(function (result) {
@@ -98,44 +96,154 @@ describe('LowlaAdapter', function() {
           body[1]._version.should.equal(1);
           res.headers.should.have.property('Cache-Control');
           res.headers.should.have.property('Content-Type');
+          res.headers['Content-Type'].should.equal('application/json');
           return true;
         });
     });
 
-    it('Should return an error for error thrown after stream is open', function () {  //programmer error
+    describe('Error Handling', function(){
 
-      var res = createMockResponse();
-      var req = createMockRequest([], testDocPayload);
-      var next = function () {
-        throw new Error('Push handler shouldn\'t be calling next()')
-      }
-      var ds = lowlaDb.config.datastore;
-      var dsFunc = ds.updateDocumentByOperations;
-      ds.updateDocumentByOperations = function(){return new _prom.promise(function(resolve, reject){foo(); resolve(true);} ) };
-      return lowlaDb.push(req, res, next)
-        .then(function (result) {
-          should.exist(result);
-          result.should.be.error;
-          should.exist(logs['error']);
-          logs.error[0].should.be.error;
+      afterEach(function(){
+        sinon.sandbox.restore();
+      });
 
-          var body = res.getBody();
-          body[0].error.message.should.equal('foo is not defined');
+      it('should handle error when promise-returning update function throws outside of promise', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([], testDocPayload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'updateDocumentByOperations').throws(Error('Some syntax error'));
+        return lowlaDb.push(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('Some syntax error');
+            var body = res.getBody();
+            body[0].error.message.should.equal('Some syntax error');
+            return true;
+          });
+      });
 
-          return true;
-        }).finally(function(){
-          ds.updateDocumentByOperations = dsFunc;
+      it('should handle error when promise-returning update function throws inside of promise', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([], testDocPayload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'updateDocumentByOperations',
+          function(){return new _prom.Promise(function(resolve, reject){foo(); resolve(true);});});
+        return lowlaDb.push(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('foo is not defined');
+            var body = res.getBody();
+            body[0].error.message.should.equal('foo is not defined');
+            return true;
+          });
+      });
+
+      it('should handle an error via try/catch inside updateDocumentByOperations', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([], testDocPayload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore.config.db, 'collection').throws(Error("Error loading collection"));
+        return lowlaDb.push(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain("Error loading collection");
+            var body = res.getBodyAsText();
+            body.should.contain("Error loading collection");
+            return true;
+          });
+      });
+
+      it('should handle an error returned by mongodb driver', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([], testDocPayload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore.config.db, 'collection', function(name, callback){
+          callback(Error("Error on collection()"), null)
         });
-    });
+        return lowlaDb.push(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain("Error on collection()");
+            var body = res.getBodyAsText();
+            body.should.contain("Error on collection()");
+            return true;
+          });
+      });
 
+      it('should handle an error on invalid update operation', function () {
+        var payload = _.cloneDeep(testDocPayload);
+        payload.documents[0].ops['$set']['$$$badfieldname'] = 123;
+        var res = createMockResponse();
+        var req = createMockRequest([], payload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        var newDoc = {_id: '1234', _version: 1, a: 77, b: 66};
+        var out = createOutputStream();
+        return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
+          .then(function () {
+            should.exist(newDoc);
+            return lowlaDb.push(req, res, next)
+              .then(function (result) {
+                var body = res.getBody();  //TODO do we want to stream doc-level errors such as update errors?
+                should.exist(result);
+                should.exist(logger.logsByLevel['error']);
+                var errs = util.inspect(logger.logsByLevel['error'], {showHidden: true, depth: null});
+                errs.should.contain('$$badfieldname');
+                return true;
+              });
+          });
+
+      });
+
+      it('should handle an update error for 1 of 3 pushed docs', function () {
+        var payload = _.cloneDeep(testDocPayload);
+        payload.documents.push(createPayloadDoc('1235', {a:77, b:88, $$$badfieldname: 'no'}));
+        payload.documents.push(createPayloadDoc('1236', {a:55, b:66}));
+        var res = createMockResponse();
+        var req = createMockRequest([], payload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        var ds = lowlaDb.config.datastore;
+        return lowlaDb.push(req, res, next)
+          .then(function (result) {
+            var body = res.getBody();
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error'], { showHidden: true, depth: null });
+            errs.should.contain('$$badfieldname');
+            body.should.contain.a.thing.with.property('id', 'lowladbtest.TestCollection$1234');
+            body.should.contain.a.thing.with.property('_id', '1234');
+            body.should.contain.a.thing.with.property('id', 'lowladbtest.TestCollection$1234');
+            body.should.contain.a.thing.with.property('_id', '1236');
+            body.should.contain.a.thing.with.property('error');
+            return true;
+          });
+      });
+    });
   });
 
-  describe('pushWithPayload', function() {
+  describe('-PushWithPayload', function() {
 
     it('should return the pushed document', function () {
-
       var out = createOutputStream();
-
       return lowlaDb.pushWithPayload(testDocPayload, lowlaDb.createResultHandler(out))
         .then(function (result) {
           should.exist(result);
@@ -282,7 +390,7 @@ describe('LowlaAdapter', function() {
         console.log("Conflict occurred:");
         console.log("Server document, will be kept: ",docCurrent);
         console.log("Conflict from client, will be discarded: ", docSent);
-        return util.readFile('test.png').then(function(filedata){
+        return testUtil.readFile('test.png').then(function(filedata){
           console.log('read ' + filedata.length + ' bytes from the file system...');
         }).then(function(){
           console.log("handler resolving...");
@@ -349,7 +457,7 @@ describe('LowlaAdapter', function() {
         })
         .then(function(result) {
           result.length.should.equal(1);
-          result[0].should.equal('lowladbtest.TestCollection$1234');
+          result[0].should.equal('Deleted: lowladbtest.TestCollection$1234');
           var output = out.getOutput();
           output.should.have.length.of(2);
           output[0].version.should.equal(1);
@@ -406,7 +514,7 @@ describe('LowlaAdapter', function() {
       var out = createOutputStream();
       var payload = _.cloneDeep(testDocPayload);
       var bin;
-      return util.readFile('test.png').then(function(filedata) {
+      return testUtil.readFile('test.png').then(function(filedata) {
         bin = new Binary(filedata);
         payload.documents[0].ops.$set.bin = {_bsonType: 'Binary', encoded: bin.toString('base64') };
       }).then(function(){
@@ -437,22 +545,22 @@ describe('LowlaAdapter', function() {
 
   });
 
-  describe('pull', function() {  //full route tests adapter.pull(req, res, next) -- see pullWithPayload tests for more detailed tests
+  describe('Pull', function() {  //full route tests adapter.pull(req, res, next) -- see pullWithPayload tests for more detailed tests of adapter behavior
 
     it('should return a test document', function () {
       var newDoc = {_id: '1234', _version: 1, a: 1, b: 2 };
-      return util.mongo.insertDocs(_db, "TestCollection", newDoc)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function () {
           var res = createMockResponse();
           var req = createMockRequest([]);
           var next = function () {
             throw new Error('Push handler shouldn\'t be calling next()')
-          }
+          };
           return lowlaDb.pull(req, res, next)
             .then(function (result) {
               result.should.have.length.greaterThan(0);
               var body = res.getBody();
-              body.should.have.length.of(2)
+              body.should.have.length.of(2);
               body[0].id.should.equal('lowladbtest.TestCollection$1234');
               body[0].version.should.equal(1);
               body[0].clientNs.should.equal('lowladbtest.TestCollection');
@@ -467,18 +575,18 @@ describe('LowlaAdapter', function() {
 
   });
 
-  describe('pullWithPayload', function() {
+  describe('-PullWithPayload', function() {
 
     it('should return a test document', function () {
       var newDoc = {_id:'1234', _version:1, a:1, b:2 };
       var out = createOutputStream();
-      return util.mongo.insertDocs(_db, "TestCollection", newDoc)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function(){
           return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
               result.should.have.length.greaterThan(0);
               var output = out.getOutput();
-              output.should.have.length.of(2)
+              output.should.have.length.of(2);
               output[0].id.should.equal('lowladbtest.TestCollection$1234');
               output[0].version.should.equal(1);
               output[0].clientNs.should.equal('lowladbtest.TestCollection');
@@ -495,7 +603,7 @@ describe('LowlaAdapter', function() {
         docs.push({_id:'1234'+i, _version:i, a:1000+i, b:2000+i });
       }
       var out = createOutputStream();
-      return util.mongo.insertDocs(_db, "TestCollection", docs)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", docs)
         .then(function(){
           return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
@@ -530,7 +638,7 @@ describe('LowlaAdapter', function() {
         }
       }
       var out = createOutputStream();
-      return util.mongo.insertDocs(_db, "TestCollection", docs)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", docs)
         .then(function(){
           return lowlaDb.pullWithPayload(payload, lowlaDb.createResultHandler(out))
             .then(function (result) {
@@ -557,7 +665,7 @@ describe('LowlaAdapter', function() {
       var msDate = 132215400000;
       var newDoc = { _id: '1234', a: 1, _version:1, date: new Date(msDate) };
       var out = createOutputStream();
-      return util.mongo.insertDocs(_db, "TestCollection", newDoc)
+      return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function(){
           return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
             .then(function (result) {
@@ -577,11 +685,11 @@ describe('LowlaAdapter', function() {
       var out = createOutputStream();
       var bin;
       var doc = { _id: '1234', a: 1, _version: 1};
-      return util.readFile('test.png').then(function (filedata) {
+      return testUtil.readFile('test.png').then(function (filedata) {
         bin = new Binary(filedata);
         doc.bin = bin;
       }).then(function () {
-        return util.mongo.insertDocs(_db, "TestCollection", doc)
+        return testUtil.mongo.insertDocs(_db, "TestCollection", doc)
           .then(function () {
             return lowlaDb.pullWithPayload(null, lowlaDb.createResultHandler(out))
               .then(function (result) {
@@ -602,6 +710,17 @@ describe('LowlaAdapter', function() {
 
   //util
 
+  var createPayloadDoc = function(id, vals){
+    return {
+      _lowla: {
+        id: 'lowladbtest.TestCollection$' + id
+      },
+      ops: {
+        $set: vals
+      }
+    }
+  };
+
   var createOutputStream = function(){
     var out = '';
     var Writable = require('stream').Writable;
@@ -613,7 +732,7 @@ describe('LowlaAdapter', function() {
     outStream.getOutput = function(){return(JSON.parse(out)); };
     outStream.getOutputAsText = function(){return out; };
     return outStream;
-  }
+  };
 
   var createMockResponse = function(){
     var mockResponse = createOutputStream();
@@ -622,7 +741,7 @@ describe('LowlaAdapter', function() {
     mockResponse.getBodyAsText = mockResponse.getOutputAsText;
     mockResponse.setHeader = function(header, value){this.headers[header] = value;};
     return mockResponse;
-  }
+  };
 
   var createMockRequest = function(headers, body){
     return {

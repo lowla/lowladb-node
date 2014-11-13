@@ -18,11 +18,10 @@ exports.createDocs = function(rootName, num){
 };
 
 exports.enableLongStackSupport = function(){
-  if(_prom.hasOwnProperty('longStackSupport')){  //enable Q stack traces if we're using Q...
-    if(!_prom.longStackSupport) {
-      _prom.longStackSupport = true;
+
+  if(_prom.hasOwnProperty('enableLongStackTraces')){
+      _prom.enableLongStackTraces();
       console.log("longStack support enabled... \n");
-    }
   }
 };
 
@@ -36,6 +35,44 @@ exports.readFile = function(path){
   });
   return deferred.promise
 };
+
+
+//loggers for tests
+
+var nonOp = function(){};
+exports.NullLogger = {log:nonOp, debug:nonOp, info:nonOp, warn:nonOp, error:nonOp};
+
+exports.TestLogger = function(){
+  this.logsByLevel = {};
+  this.logs = [];
+  var logFunc = function(level, binding){
+    return function(){
+      if(! binding.logsByLevel[level]){
+        binding.logsByLevel[level] = [];
+      }
+      var entry = {level: level, ts: new Date().getTime(), args: Array.prototype.slice.call(arguments)};
+      entry.idxInLevel = binding.logsByLevel[level].push(entry);
+      entry.idxInAll = binding.logs.push(entry)
+    };
+  };
+  this.reset=function(){this.logsByLevel={}, this.logs=[];};
+  this.print=function(){
+    for(l in this.logs){
+      console.log(this.logs[l].ts, this.logs[l].level, this.logs[l].args);
+    }
+  };
+  this.inspect=function(){
+    for(l in this.logs){
+      console.log(util.inspect(this.logs[l], { showHidden: true, depth: null }));
+    }
+  };
+  this.log=logFunc('log' , this);
+  this.debug=logFunc('debug', this);
+  this.info=logFunc('info', this);
+  this.warn=logFunc('warn', this);
+  this.error=logFunc('error', this);
+};
+
 
 //mongo
 
