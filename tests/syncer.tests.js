@@ -1,6 +1,9 @@
 
 var should = require('chai').should();
 var LowlaSyncer = require('../lib/sync.js').LowlaSyncer;
+var testUtil = require('./testUtil');
+
+testUtil.enableLongStackSupport();
 
 describe('LowlaSync', function() {
   var lowlaSync = new LowlaSyncer({

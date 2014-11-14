@@ -27,14 +27,14 @@ exports.enableLongStackSupport = function(){
 };
 
 exports.readFile = function(path){
-  var deferred = _prom.defer();
-  require('fs').readFile(require('path').resolve(__dirname, path), 'UTF-8', function(err, data){
-    if(err){
-      return deferred.reject(err);
-    }
-    deferred.resolve( data );
+  return new _prom.Promise(function(resolve, reject){
+    require('fs').readFile(require('path').resolve(__dirname, path), 'UTF-8', function(err, data){
+      if(err){
+        return reject(err);
+      }
+      resolve( data );
+    });
   });
-  return deferred.promise
 };
 
 exports.createLowlaId = function(dbName, collectionName, id){
@@ -83,59 +83,58 @@ exports.TestLogger = function(){
 //mongo
 
 mongo.prototype.openDatabase = function(url){
-  var deferred = _prom.defer();
+  return new _prom.Promise(function(resolve, reject){
   _mc.connect(url, function (err, db) {
     if (err) {
-      deferred.reject(err);
+      return reject(err);
     }
     _db = db;
-    deferred.resolve(db);
+    resolve(db);
   });
-  return deferred.promise;
+  });
 };
 
 mongo.prototype.getCollection = function(db, collName){
-  var deferred = _prom.defer();
-  db.collection(collName, function (err, coll) {
-    if (err) {
-      deferred.reject(err);
-    }
-    deferred.resolve(coll);
+  return new _prom.Promise(function(resolve, reject) {
+    db.collection(collName, function (err, coll) {
+      if (err) {
+        return reject(err);
+      }
+      resolve(coll);
+    });
   });
-  return deferred.promise;
 };
 
 mongo.prototype.removeCollection = function(db, collName){
-  var deferred = _prom.defer();
-  db.dropCollection(collName, function (err, coll) {
-    if (err) {
-      deferred.reject(err);
-    }
-    return deferred.resolve(true);
+  return new _prom.Promise(function(resolve, reject) {
+    db.dropCollection(collName, function (err, coll) {
+      if (err) {
+        return reject(err);
+      }
+      resolve(true);
+    });
   });
-  return deferred.promise;
 };
 
 mongo.prototype.findDocs = function(db, collectionName, query) {
-  var deferred = _prom.defer();
-  db.collection(collectionName, function (err, coll) {
-    if (err) {
-      return deferred.reject(error);
-    }
-    coll.find(query, function (err, cursor) {
+  return new _prom.Promise(function(resolve, reject) {
+    db.collection(collectionName, function (err, coll) {
       if (err) {
-        return deferred.reject(error);
+        return reject(error);
       }
-      cursor.toArray(function(err, docs){
+      coll.find(query, function (err, cursor) {
         if (err) {
-          return deferred.reject(error);
+          return reject(error);
         }
-        deferred.resolve(docs);
+        cursor.toArray(function (err, docs) {
+          if (err) {
+            return reject(error);
+          }
+          resolve(docs);
+        });
       });
     });
   });
-
-  return deferred.promise;
 };
 
 mongo.prototype.getIds = function(db, collectionName){
@@ -149,40 +148,38 @@ mongo.prototype.getIds = function(db, collectionName){
 };
 
 mongo.prototype.insertDocs = function(db, collectionName, docs) {
-  var deferred = _prom.defer();
-
-  db.collection(collectionName, function (err, coll) {
-    if (err) {
-      return deferred.reject(error);
-    }
-    coll.insert(docs, function (err, result) {
+  return new _prom.Promise(function(resolve, reject) {
+    db.collection(collectionName, function (err, coll) {
       if (err) {
-        return deferred.reject(error);
+        return reject(error);
       }
-      deferred.resolve(result);
+      coll.insert(docs, function (err, result) {
+        if (err) {
+          return reject(error);
+        }
+        resolve(result);
+      });
     });
   });
-
-  return deferred.promise;
 };
 
 mongo.prototype.getCollectionNames = function(db){
-  var deferred = _prom.defer();
-  db.collectionNames(function (err, colls) {
-    if (err) {
-      return deferred.reject(err);
-    }
-    var ret = [];
-    for (col in colls) {
-      var colname = colls[col].name;
-      if (-1 == colname.indexOf('.system.')) {
-        var collectionName = colname.substr(1 + colname.indexOf('.'));
-        ret.push(collectionName);
+  return new _prom.Promise(function(resolve, reject) {
+    db.collectionNames(function (err, colls) {
+      if (err) {
+        return reject(err);
       }
-    }
-    deferred.resolve(ret);
+      var ret = [];
+      for (col in colls) {
+        var colname = colls[col].name;
+        if (-1 == colname.indexOf('.system.')) {
+          var collectionName = colname.substr(1 + colname.indexOf('.'));
+          ret.push(collectionName);
+        }
+      }
+      resolve(ret);
+    });
   });
-  return deferred.promise;
 };
 
 mongo.prototype.removeAllCollections = function(db){
