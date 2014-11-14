@@ -141,8 +141,12 @@ describe('LowlaAdapter', function() {
             should.exist(logger.logsByLevel['error']);
             var errs = util.inspect(logger.logsByLevel['error']);
             errs.should.contain('foo is not defined');
-            var body = res.getBody();
-            body[0].error.message.should.equal('foo is not defined');
+            var body = res.getBodyAsText();
+            if(lowlaDb.config.sendDocumentLevelErrors) {
+              body.should.contain("foo is not defined");
+            }else{
+              body.should.equal('[]');
+            }
             return true;
           });
       });
@@ -161,7 +165,11 @@ describe('LowlaAdapter', function() {
             var errs = util.inspect(logger.logsByLevel['error']);
             errs.should.contain("Error loading collection");
             var body = res.getBodyAsText();
-            body.should.contain("Error loading collection");
+            if(lowlaDb.config.sendDocumentLevelErrors) {
+              body.should.contain("Error loading collection");
+            }else{
+              body.should.equal('[]');
+            }
             return true;
           });
       });
@@ -182,7 +190,11 @@ describe('LowlaAdapter', function() {
             var errs = util.inspect(logger.logsByLevel['error']);
             errs.should.contain("Error on collection()");
             var body = res.getBodyAsText();
-            body.should.contain("Error on collection()");
+            if(lowlaDb.config.sendDocumentLevelErrors) {
+              body.should.contain("Error on collection()");
+            }else{
+              body.should.equal('[]');
+            }
             return true;
           });
       });
@@ -234,7 +246,9 @@ describe('LowlaAdapter', function() {
             body.should.contain.a.thing.with.property('_id', '1234');
             body.should.contain.a.thing.with.property('id', 'lowladbtest.TestCollection$1234');
             body.should.contain.a.thing.with.property('_id', '1236');
-            body.should.contain.a.thing.with.property('error');
+            if(lowlaDb.config.sendDocumentLevelErrors) {
+              body.should.contain.a.thing.with.property('error');
+            }
             return true;
           });
       });
@@ -574,6 +588,106 @@ describe('LowlaAdapter', function() {
         });
     });
 
+
+    describe('Error Handling', function() {
+
+      beforeEach(function(done){
+        var newDoc = {_id: '1234', _version: 1, a: 1, b: 2 };
+        return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
+          .then(function () {
+            done();
+          });
+      })
+      afterEach(function (done) {
+        sinon.sandbox.restore();
+        done();
+      });
+
+      //sinon.sandbox.stub(lowlaDb.config.datastore, 'updateDocumentByOperations').throws(Error('Some syntax error'));
+
+      it('should handle error when a promise-returning function throws outside of a promise', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([]);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()');
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'getAllDocuments').throws(Error('Some syntax error'));
+        return lowlaDb.pull(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('Some syntax error');
+            var body = res.getBody();
+            body[0].error.message.should.equal('Some syntax error');
+            return true;
+          })
+      });
+
+
+      it('should handle error when promise-returning update function throws inside of promise', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([]);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'getAllDocuments',
+          function(){return new _prom.Promise(function(resolve, reject){foo(); resolve(true);});});
+        return lowlaDb.pull(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('foo is not defined');
+            var body = res.getBody();
+            body[0].error.message.should.equal('foo is not defined');
+            return true;
+          })
+      });
+
+      it('should handle an error thrown inside getAllDocuments', function () {
+        var res = createMockResponse();
+        var req = createMockRequest([]);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'findInCollection').throws(Error("Error finding in collection"));
+        return lowlaDb.pull(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('Error finding in collection');
+            var body = res.getBody();
+            body[0].error.message.should.equal('Error finding in collection');
+            return true;
+          })
+      });
+
+      it('should handle an error thrown inside getDocuments', function () {
+        var payload = {ids:['lowladbtest.TestCollection$1234']};
+        var res = createMockResponse();
+        var req = createMockRequest([], payload);
+        var next = function () {
+          throw new Error('Push handler shouldn\'t be calling next()')
+        };
+
+        sinon.sandbox.stub(lowlaDb.config.datastore, 'getDocument').throws(Error("Error get document"));
+        return lowlaDb.pull(req, res, next)
+          .then(function (result) {
+            should.exist(result);
+            should.exist(logger.logsByLevel['error']);
+            var errs = util.inspect(logger.logsByLevel['error']);
+            errs.should.contain('Error get document');
+            var body = res.getBody();
+            body[0].error.message.should.equal('Error get document');
+            return true;
+          })
+      });
+
+
+    });
+
   });
 
   describe('-PullWithPayload', function() {
@@ -708,6 +822,43 @@ describe('LowlaAdapter', function() {
     });
 
   });
+
+  describe('internals', function(){
+
+    it('should create a working ResultHandler', function(){
+      var out = createOutputStream();
+      var rh = lowlaDb.createResultHandler(out);
+      should.exist(rh);
+      rh.should.respondTo('start');
+      rh.should.respondTo('writeError');
+      rh.should.respondTo('write');
+      rh.should.respondTo('end');
+      var lowlaId = testUtil.createLowlaId('fooDb', 'fooColl', '123');
+      var doc = {a:1, b:2};
+      var err = new Error("something went wrong");
+      rh.start();
+      rh.write(lowlaId, 3, true);
+      lowlaId.id = '124';
+      rh.writeError(err, lowlaId);
+      lowlaId.id = '125';
+      rh.write(lowlaId, 2, false, doc);
+      rh.end();
+      var output = out.getOutput();
+
+      output.should.have.length.of(4);
+      output[0].id.should.equal('fooDb.fooColl$123');
+      output[0].version.should.equal(3);
+      output[0].clientNs.should.equal('fooDb.fooColl');
+      output[1].error.id.should.equal('fooDb.fooColl$124');
+      output[1].error.message.should.equal('something went wrong');
+      output[2].id.should.equal('fooDb.fooColl$125');
+      output[2].version.should.equal(2);
+      output[2].clientNs.should.equal('fooDb.fooColl');
+      output[3].a.should.equal(1);
+      output[3].b.should.equal(2);
+    });
+  });
+
 
   //util
 

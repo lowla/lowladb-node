@@ -13,6 +13,7 @@ testUtil.enableLongStackSupport();
 
 var _db;
 var _ds;
+var _dbName;
 
 
 describe('Datastore', function () {
@@ -22,6 +23,7 @@ describe('Datastore', function () {
     _ds.ready.then(function() {
       testUtil.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
         _db = db;
+        _dbName = _db.databaseName;
         done();
       });
     });
@@ -269,7 +271,7 @@ describe('Datastore', function () {
                 b: 5
               }
             };
-            return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
+            return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', docs[0]._id), docs[0]._version, ops);
           }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
@@ -325,7 +327,7 @@ describe('Datastore', function () {
               }
             };
             ops = _ds.decodeSpecialTypes(ops);
-            return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version, ops);
+            return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', docs[0]._id), docs[0]._version, ops);
           }).then(function (newDoc) {
             newDoc.a.should.equal(99);
             newDoc.b.should.equal(5);
@@ -360,7 +362,7 @@ describe('Datastore', function () {
         }
       };
       var ObjectID = require('mongodb').ObjectID;
-      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
+      return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', new ObjectID()), undefined, ops)
         .then(function (newDoc) {
           newDoc.a.should.equal(98);
           newDoc.b.should.equal(7);
@@ -381,7 +383,7 @@ describe('Datastore', function () {
           b: 7
         }
       };
-      var lowlaId = createLowlaId('TestCollection', '123');
+      var lowlaId = testUtil.createLowlaId(_dbName, 'TestCollection', '123');
       delete lowlaId.id;
       return _ds.updateDocumentByOperations(lowlaId, undefined, ops)
         .then(function (newDoc) {
@@ -406,7 +408,7 @@ describe('Datastore', function () {
               b: 5
             }
           };
-          return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), docs[0]._version,  ops);
+          return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', docs[0]._id), docs[0]._version,  ops);
         }).then(function(newDoc){
           newDoc.a.should.equal(99);
           newDoc.b.should.equal(5);
@@ -436,7 +438,7 @@ describe('Datastore', function () {
               b: 5
             }
           };
-          return _ds.updateDocumentByOperations(createLowlaId('TestCollection', docs[0]._id), oldVers,  ops);
+          return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', docs[0]._id), oldVers,  ops);
         }).then(null, function(result){
           result.isConflict.should.be.true;
           should.not.exist(result.document);
@@ -454,7 +456,7 @@ describe('Datastore', function () {
           return testUtil.mongo.findDocs(_db, 'TestCollection', {});
         }).then(function(docs){
           docs.length.should.equal(1);
-          return _ds.removeDocument(createLowlaId('TestCollection', docs[0]._id))
+          return _ds.removeDocument(testUtil.createLowlaId(_dbName, 'TestCollection', docs[0]._id))
         }).then(function(numRemoved){
           //numRemoved.should.equal(1);
           return testUtil.mongo.findDocs(_db, 'TestCollection', {});
@@ -482,7 +484,7 @@ describe('Datastore', function () {
       return testUtil.mongo.getIds(_db, 'TestCollection')
         .then(function (ids) {
           id=ids[2];
-          return _ds.getDocument(createLowlaId('TestCollection', ids[2]));
+          return _ds.getDocument(testUtil.createLowlaId(_dbName, 'TestCollection', ids[2]));
         })
         .then(function (doc) {
           doc.name.should.equal('TestCollection_3');
@@ -645,7 +647,7 @@ describe('Datastore', function () {
         }
       };
       var ObjectID = require('mongodb').ObjectID;
-      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
+      return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', new ObjectID()), undefined, ops)
         .then(function (newDoc) {
           should.not.exist(newDoc);
         }, function(err){
@@ -664,7 +666,7 @@ describe('Datastore', function () {
         }
       };
       var ObjectID = require('mongodb').ObjectID;
-      return _ds.updateDocumentByOperations(createLowlaId('TestCollection', new ObjectID()), undefined, ops)
+      return _ds.updateDocumentByOperations(testUtil.createLowlaId(_dbName, 'TestCollection', new ObjectID()), undefined, ops)
         .then(function (newDoc) {
           should.not.exist(newDoc);
         }, function(err){
@@ -676,7 +678,7 @@ describe('Datastore', function () {
       hookGetCollectionCall(function (collection) {
         sinon.sandbox.stub(collection, 'remove').throws(new Error('remove throws'));
       });
-      return _ds.removeDocument(createLowlaId('TestCollection', '123'))
+      return _ds.removeDocument(testUtil.createLowlaId(_dbName, 'TestCollection', '123'))
         .then(function(numRemoved){
           should.not.exist(numRemoved);
         }, function(err){
@@ -691,7 +693,7 @@ describe('Datastore', function () {
         });
       });
 
-      return _ds.removeDocument(createLowlaId('TestCollection', '123'))
+      return _ds.removeDocument(testUtil.createLowlaId(_dbName, 'TestCollection', '123'))
         .then(function(numRemoved){
           should.not.exist(numRemoved);
         }, function(err){
@@ -781,11 +783,6 @@ describe('Datastore', function () {
   });
 
   //util
-  var createLowlaId = function(collectionName, id){
-    var lowlaId = new LowlaId();
-    lowlaId.fromComponents(_db.databaseName, collectionName, id);
-    return lowlaId;
-  };
 
   var hookGetCollectionCall = function(fnHook){
     var origFunction = _ds.getCollection;

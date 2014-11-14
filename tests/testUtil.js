@@ -2,6 +2,7 @@
 var MongoClient = require('mongodb').MongoClient;
 var Mongo = require('mongodb');
 var _prom = require('../lib/promiseImpl.js');
+var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
 
 var _mc = new MongoClient();
 var _db;
@@ -36,6 +37,11 @@ exports.readFile = function(path){
   return deferred.promise
 };
 
+exports.createLowlaId = function(dbName, collectionName, id){
+  var lowlaId = new LowlaId();
+  lowlaId.fromComponents(dbName, collectionName, id);
+  return lowlaId;
+};
 
 //loggers for tests
 
