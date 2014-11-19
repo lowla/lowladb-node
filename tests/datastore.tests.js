@@ -19,7 +19,7 @@ var _dbName;
 describe('Datastore', function () {
 
   before(function (done) {
-    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger: console }); //testUtil.NullLogger});
+    _ds = new Datastore({mongoUrl:'mongodb://127.0.0.1/lowladbtest', logger: testUtil.NullLogger});
     _ds.ready.then(function() {
       testUtil.mongo.openDatabase('mongodb://127.0.0.1/lowladbtest').then(function (db) {
         _db = db;
@@ -550,8 +550,10 @@ describe('Datastore', function () {
           return _ds.findInCollection('TestCollection', {a:2})
             .then(function(cursor){
               return _ds.cursorToArray(cursor);
-            }).then(function(docs){
-              console.log(docs);
+            }).then(function(results){
+              results.length.should.equal(1);
+              results[0].a.should.equal(2);
+              results[0].b.should.equal(4);
             });
         })
     });
@@ -567,7 +569,6 @@ describe('Datastore', function () {
             }).then(function(res){
               h.end();
               var results = h.getResults();
-              console.log(results);
               results.length.should.equal(3);
               results.should.all.have.property('lowlaId');
               results.should.all.have.property('deleted');

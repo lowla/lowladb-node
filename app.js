@@ -11,7 +11,7 @@ var PrettyStream = require('bunyan-prettystream');  //TODO bunyan-prettystream i
 var prettyStdOut = new PrettyStream();
 prettyStdOut.pipe(process.stdout);
 var logConfig = { name: 'LowlaDb',streams: [
-  { level: 'debug', stream: prettyStdOut },
+  { level: 'debug', stream: prettyStdOut },   //set to trace to see verbose logging, including express
   { level: 'debug', path: 'LowLa.log' }
 ]};
 var logger = bunyan.createLogger(logConfig);
@@ -22,7 +22,7 @@ logger.stream = (function(_thisLogger){
     }
   }
 })(logger);
-logger.log = logger.debug;
+logger.verbose = logger.trace;
 
 
 var routes = require('./routes/index');
