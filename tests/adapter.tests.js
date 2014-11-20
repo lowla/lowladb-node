@@ -77,7 +77,7 @@ describe('LowlaAdapter', function() {
     it('should return the pushed document', function () {
 
       var res = createMockResponse();
-      var req = createMockRequest([], testDocPayload);
+      var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, testDocPayload);
       var next = function () {
         throw new Error('Push handler shouldn\'t be calling next()')
       };
@@ -110,7 +110,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle error when promise-returning update function throws outside of promise', function () {
         var res = createMockResponse();
-        var req = createMockRequest([], testDocPayload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, testDocPayload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -129,7 +129,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle error when promise-returning update function throws inside of promise', function () {
         var res = createMockResponse();
-        var req = createMockRequest([], testDocPayload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, testDocPayload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -153,7 +153,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle an error via try/catch inside updateDocumentByOperations', function () {
         var res = createMockResponse();
-        var req = createMockRequest([], testDocPayload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, testDocPayload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -176,7 +176,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle an error returned by mongodb driver', function () {
         var res = createMockResponse();
-        var req = createMockRequest([], testDocPayload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, testDocPayload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -203,7 +203,7 @@ describe('LowlaAdapter', function() {
         var payload = _.cloneDeep(testDocPayload);
         payload.documents[0].ops['$set']['$$$badfieldname'] = 123;
         var res = createMockResponse();
-        var req = createMockRequest([], payload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, payload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -230,7 +230,7 @@ describe('LowlaAdapter', function() {
         payload.documents.push(createPayloadDoc('1235', {a:77, b:88, $$$badfieldname: 'no'}));
         payload.documents.push(createPayloadDoc('1236', {a:55, b:66}));
         var res = createMockResponse();
-        var req = createMockRequest([], payload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, payload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -567,7 +567,7 @@ describe('LowlaAdapter', function() {
       return testUtil.mongo.insertDocs(_db, "TestCollection", newDoc)
         .then(function () {
           var res = createMockResponse();
-          var req = createMockRequest([]);
+          var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'});
           var next = function () {
             throw new Error('Push handler shouldn\'t be calling next()')
           };
@@ -607,7 +607,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle error when a promise-returning function throws outside of a promise', function () {
         var res = createMockResponse();
-        var req = createMockRequest([]);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'});
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()');
         };
@@ -627,7 +627,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle error when promise-returning update function throws inside of promise', function () {
         var res = createMockResponse();
-        var req = createMockRequest([]);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'});
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -647,7 +647,7 @@ describe('LowlaAdapter', function() {
 
       it('should handle an error thrown inside getAllDocuments', function () {
         var res = createMockResponse();
-        var req = createMockRequest([]);
+        var req = createMockRequest({});
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -667,7 +667,7 @@ describe('LowlaAdapter', function() {
       it('should handle an error thrown inside getDocuments', function () {
         var payload = {ids:['lowladbtest.TestCollection$1234']};
         var res = createMockResponse();
-        var req = createMockRequest([], payload);
+        var req = createMockRequest({'user-agent':'test', 'origin':'test.origin'}, payload);
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
@@ -898,7 +898,10 @@ describe('LowlaAdapter', function() {
   var createMockRequest = function(headers, body){
     return {
       headers:headers,
-      body:body
+      body:body,
+      get:function(name){
+        return headers[name];
+      }
     }
   }
 

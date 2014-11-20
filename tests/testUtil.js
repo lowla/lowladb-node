@@ -22,7 +22,6 @@ exports.enableLongStackSupport = function(){
 
   if(_prom.hasOwnProperty('enableLongStackTraces')){
       _prom.enableLongStackTraces();
-      console.log("longStack support enabled... \n");
   }
 };
 
@@ -46,7 +45,7 @@ exports.createLowlaId = function(dbName, collectionName, id){
 //loggers for tests
 
 var nonOp = function(){};
-exports.NullLogger = {log:nonOp, debug:nonOp, info:nonOp, warn:nonOp, error:nonOp};
+exports.NullLogger = {verbose:nonOp, debug:nonOp, info:nonOp, warn:nonOp, error:nonOp};
 
 exports.TestLogger = function(){
   this.logsByLevel = {};
@@ -58,7 +57,8 @@ exports.TestLogger = function(){
       }
       var entry = {level: level, ts: new Date().getTime(), args: Array.prototype.slice.call(arguments)};
       entry.idxInLevel = binding.logsByLevel[level].push(entry);
-      entry.idxInAll = binding.logs.push(entry)
+      entry.idxInAll = binding.logs.push(entry);
+      //console.log(entry);
     };
   };
   this.reset=function(){this.logsByLevel={}, this.logs=[];};
@@ -72,7 +72,7 @@ exports.TestLogger = function(){
       console.log(util.inspect(this.logs[l], { showHidden: true, depth: null }));
     }
   };
-  this.log=logFunc('log' , this);
+  this.verbose=logFunc('verbose' , this);
   this.debug=logFunc('debug', this);
   this.info=logFunc('info', this);
   this.warn=logFunc('warn', this);
