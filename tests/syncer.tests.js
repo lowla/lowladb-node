@@ -2,14 +2,12 @@
 var should = require('chai').should();
 var LowlaSyncer = require('../lib/sync.js').LowlaSyncer;
 var testUtil = require('./testUtil');
+var Datastore = require('../lib/datastore/datastore').Datastore;
 
 testUtil.enableLongStackSupport();
 
 describe('LowlaSync', function() {
-  var lowlaSync = new LowlaSyncer({
-    syncUrl: 'mongodb://127.0.0.1/lowlasynctest'
-  });
-
+  var lowlaSync;
   var testPayload;
 
   beforeEach(function() {
@@ -24,20 +22,14 @@ describe('LowlaSync', function() {
     };
   });
 
-  beforeEach(function(done) {
-    lowlaSync.ready.then(function() {
-      lowlaSync.atoms.remove({}, function(err) {
-        if (err) {
-          throw err;
-        }
-        lowlaSync.sequences.remove({}, function(err) {
-          if (err) {
-            throw err;
-          }
-          done();
-        });
-      });
-    })
+  beforeEach(function() {
+    lowlaSync = new LowlaSyncer({
+      datastore: new Datastore({ mongoUrl: 'mongodb://127.0.0.1/lowlasynctest' })
+    });
+
+    return lowlaSync.config.datastore.ready.then(function() {
+      return testUtil.mongo.removeAllCollections(lowlaSync.config.datastore.config.db);
+    });
   });
 
   describe('Updates', function() {
@@ -60,44 +52,36 @@ describe('LowlaSync', function() {
         })
     });
 
-    it('should be saving atoms', function(done) {
-      lowlaSync.updateWithPayload(testPayload)
-        .then(function() {
-          lowlaSync.atoms.find().toArray(function(err, atoms) {
-            if (err) {
-              throw err;
-            }
-
-            atoms.should.have.length.of(1);
-            atoms[0].remoteKey.should.equal('testdb.TestCollection$1234');
-            atoms[0].version.should.equal(1);
-            atoms[0].clientNs.should.equal('testDb.TestCollection');
-            atoms[0].sequence.should.equal(1);
-            atoms[0].deleted.should.be.false;
-          })
+    it('should be saving atoms', function() {
+      return lowlaSync.updateWithPayload(testPayload)
+        .then(function () {
+          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomCollection, {});
         })
-        .then(done, done);
+        .then(function (atoms) {
+          atoms.length.should.equal(1);
+          atoms[0]._id.should.equal('testdb.TestCollection$1234');
+          atoms[0].version.should.equal(1);
+          atoms[0].clientNs.should.equal('testDb.TestCollection');
+          atoms[0].sequence.should.equal(1);
+          atoms[0].deleted.should.equal(false);
+        })
     });
 
-    it('should be updating existing atoms', function(done) {
+    it('should be updating existing atoms', function() {
       return lowlaSync.updateWithPayload(testPayload)
         .then(function() {
           testPayload.modified[0].version = 3;
           return lowlaSync.updateWithPayload(testPayload);
         })
         .then(function() {
-          var cursor = lowlaSync.atoms.find();
-          cursor.toArray(function (err, atoms) {
-            if (err) {
-              done(err);
-            }
-            atoms.should.have.length.of(1);
-            atoms[0].version.should.equal(3);
-            atoms[0].sequence.should.equal(3);
-          })
+          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomCollection, {});
         })
-        .then(done, done);
-    })
+        .then(function(atoms) {
+          atoms.length.should.equal(1);
+          atoms[0].version.should.equal(3);
+          atoms[0].sequence.should.equal(3);
+        });
+    });
   });
 
   describe('Changes', function() {

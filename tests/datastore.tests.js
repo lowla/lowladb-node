@@ -6,8 +6,6 @@ var _ = require('lodash');
 var Datastore = require('../lib/datastore/datastore.js').Datastore;
 var testUtil = require('./testUtil');
 var Binary = require('mongodb').Binary;
-var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
-
 
 testUtil.enableLongStackSupport();
 
@@ -383,13 +381,12 @@ describe('Datastore', function () {
           b: 7
         }
       };
-      var lowlaId = testUtil.createLowlaId(_dbName, 'TestCollection', '123');
-      delete lowlaId.id;
+      var lowlaId = _dbName + '.TestCollection';
       return _ds.updateDocumentByOperations(lowlaId, undefined, ops)
         .then(function (newDoc) {
           should.not.exist(newDoc);
         }, function(err){
-          err.message.should.equal('Datastore.updateDocumentByOperations: id must be specified')
+          err.message.should.equal('Internal error: Lowla ID must be in the format database.collection$id')
         })
     });
 
@@ -506,10 +503,12 @@ describe('Datastore', function () {
         }
         var results = h.getResults();
         var collections = {};
-        for (i = 0; i < results.length; i++) {
+        for (var i = 0; i < results.length; i++) {
           results.length.should.equal(30);
-          collections[results[i].lowlaId.collectionName]=true;
-          results[i].doc.name.should.equal(results[i].lowlaId.collectionName + "_" + results[i].doc.a)
+          var clientNs = Datastore.namespaceFromId(results[i].lowlaId);
+          var collectionName = clientNs.substring(clientNs.indexOf('.') + 1);
+          collections[collectionName]=true;
+          results[i].doc.name.should.equal(collectionName + "_" + results[i].doc.a)
         }
         collections["TestCollection"].should.be.true;
         collections["TestCollection2"].should.be.true;
@@ -526,7 +525,7 @@ describe('Datastore', function () {
         .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
         .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
         .then(function () {
-          return _ds.getCollectionNames().then(function(names){
+          return _ds._getCollectionNames().then(function(names){
             should.exist(names);
             names.length.should.equal(3);
             names.should.contain('aCollection');
@@ -537,7 +536,7 @@ describe('Datastore', function () {
     });
 
     it('gets a collection promise', function(){
-      return _ds.getCollection("TestCollection").then(function(collection){
+      return _ds._getCollection("TestCollection").then(function(collection){
         should.exist(collection);
         collection.db.databaseName.should.equal(_ds.config.db.databaseName);
         collection.collectionName.should.equal('TestCollection');
@@ -547,9 +546,9 @@ describe('Datastore', function () {
     it('finds in collection', function(){
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          return _ds.findInCollection('TestCollection', {a:2})
+          return _ds._findInCollection('TestCollection', {a:2})
             .then(function(cursor){
-              return _ds.cursorToArray(cursor);
+              return _ds._cursorToArray(cursor);
             }).then(function(results){
               results.length.should.equal(1);
               results[0].a.should.equal(2);
@@ -563,9 +562,9 @@ describe('Datastore', function () {
       h.start();
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          return _ds.findInCollection('TestCollection', {})
+          return _ds._findInCollection('TestCollection', {})
             .then(function(cursor){
-              return _ds.streamCursor(cursor, 'TestCollection', h);
+              return _ds._streamCursor(cursor, 'TestCollection', h);
             }).then(function(res){
               h.end();
               var results = h.getResults();
@@ -593,7 +592,7 @@ describe('Datastore', function () {
         .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
         .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
         .then(function () {
-          return _ds.getCollectionNames().then(function(names) {
+          return _ds._getCollectionNames().then(function(names) {
             should.not.exist(names);
           }, function(err){
             err.message.should.equal('Error loading collectionNames')
@@ -607,7 +606,7 @@ describe('Datastore', function () {
         .then(testUtil.mongo.insertDocs(_db, "bCollection", testUtil.createDocs("TestCollection2_", 1)))
         .then(testUtil.mongo.insertDocs(_db, "cCollection", testUtil.createDocs("TestCollection3_", 1)))
         .then(function () {
-          return _ds.getCollectionNames().then(function(names) {
+          return _ds._getCollectionNames().then(function(names) {
             should.not.exist(names);
           }, function(err){
             err.message.should.equal('Error loading collectionNames')
@@ -619,7 +618,7 @@ describe('Datastore', function () {
       sinon.sandbox.stub(_ds.config.db, 'collection', function(name, callback){
         callback(Error("Error loading collection"), null)
       });
-      return _ds.getCollection("TestCollection").then(function(collection){
+      return _ds._getCollection("TestCollection").then(function(collection){
         should.not.exist(collection);
       }, function(err){
         err.message.should.equal('Error loading collection')
@@ -628,7 +627,7 @@ describe('Datastore', function () {
 
     it('catches throw in getCollection', function(){
       sinon.sandbox.stub(_ds.config.db, 'collection').throws(Error('Error loading collection'));
-      return _ds.getCollection("TestCollection").then(function(collection){
+      return _ds._getCollection("TestCollection").then(function(collection){
         should.not.exist(collection);
       }, function(err){
         err.message.should.equal('Error loading collection')
@@ -708,7 +707,7 @@ describe('Datastore', function () {
       });
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          return _ds.findInCollection('TestCollection', {a:2})
+          return _ds._findInCollection('TestCollection', {a:2})
             .then(function(cursor){
               should.not.exist(cursor);
             }, function(err){
@@ -725,7 +724,7 @@ describe('Datastore', function () {
       });
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          return _ds.findInCollection('TestCollection', {a:2})
+          return _ds._findInCollection('TestCollection', {a:2})
             .then(function(cursor){
               should.not.exist(cursor);
             }, function(err){
@@ -739,10 +738,10 @@ describe('Datastore', function () {
       h.start();
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          return _ds.findInCollection('TestCollection', {})
+          return _ds._findInCollection('TestCollection', {})
             .then(function(cursor){
               sinon.sandbox.stub(cursor, 'stream').throws(new Error('cursor.stream error'));
-              return _ds.streamCursor(cursor, 'TestCollection', h);
+              return _ds._streamCursor(cursor, 'TestCollection', h);
             }).then(function(result){
               should.not.exist(result);
             }, function(err){
@@ -756,7 +755,7 @@ describe('Datastore', function () {
       h.start();
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          sinon.sandbox.stub(_ds, 'streamCursor').throws(new Error('cursor.stream error'));
+          sinon.sandbox.stub(_ds, '_streamCursor').throws(new Error('cursor.stream error'));
           return _ds.getAllDocuments(h)
             .then(function(result){
               should.not.exist(result);
@@ -771,7 +770,7 @@ describe('Datastore', function () {
       h.start();
       return testUtil.mongo.insertDocs(_db, "TestCollection", testUtil.createDocs("TestCollection_", 3))
         .then(function(){
-          sinon.sandbox.stub(_ds, 'findInCollection').throws(new Error('findInCollection error'));
+          sinon.sandbox.stub(_ds, '_findInCollection').throws(new Error('findInCollection error'));
           return _ds.getAllDocuments(h)
             .then(function(result){
               should.not.exist(result);
@@ -786,8 +785,8 @@ describe('Datastore', function () {
   //util
 
   var hookGetCollectionCall = function(fnHook){
-    var origFunction = _ds.getCollection;
-    sinon.sandbox.stub(_ds, 'getCollection', function (collectionName) {
+    var origFunction = _ds._getCollection;
+    sinon.sandbox.stub(_ds, '_getCollection', function (collectionName) {
       return origFunction.call(_ds, collectionName).then(function(collection){
         fnHook(collection);
         return collection;

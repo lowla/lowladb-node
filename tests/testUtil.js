@@ -2,7 +2,6 @@
 var MongoClient = require('mongodb').MongoClient;
 var Mongo = require('mongodb');
 var _prom = require('../lib/promiseImpl.js');
-var LowlaId = require('../lib/datastore/lowlaId.js').LowlaId;
 
 var _mc = new MongoClient();
 var _db;
@@ -12,8 +11,8 @@ var _mongo = new mongo();
 
 exports.createDocs = function(rootName, num){
   var docs = [];
-  for(i=1; i<=num; i++){
-    docs.push({name: rootName + i, a: i, b: 2*i, _version:1})
+  for(var i=1; i<=num; i++){
+    docs.push({_id: 'testId_' + i, name: rootName + i, a: i, b: 2*i, _version:1})
   }
   return docs;
 };
@@ -37,8 +36,7 @@ exports.readFile = function(path){
 };
 
 exports.createLowlaId = function(dbName, collectionName, id){
-  var lowlaId = new LowlaId();
-  lowlaId.fromComponents(dbName, collectionName, id);
+  var lowlaId = dbName + '.' + collectionName + '$' + id;
   return lowlaId;
 };
 
@@ -151,11 +149,11 @@ mongo.prototype.insertDocs = function(db, collectionName, docs) {
   return new _prom.Promise(function(resolve, reject) {
     db.collection(collectionName, function (err, coll) {
       if (err) {
-        return reject(error);
+        return reject(err);
       }
       coll.insert(docs, function (err, result) {
         if (err) {
-          return reject(error);
+          return reject(err);
         }
         resolve(result);
       });

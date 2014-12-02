@@ -651,7 +651,7 @@ describe('LowlaAdapter', function() {
         var next = function () {
           throw new Error('Push handler shouldn\'t be calling next()')
         };
-        sinon.sandbox.stub(lowlaDb.config.datastore, 'findInCollection').throws(Error("Error finding in collection"));
+        sinon.sandbox.stub(lowlaDb.config.datastore, '_findInCollection').throws(Error("Error finding in collection"));
         return lowlaDb.pull(req, res, next)
           .then(function (result) {
             should.exist(result);
@@ -838,9 +838,9 @@ describe('LowlaAdapter', function() {
       var err = new Error("something went wrong");
       rh.start();
       rh.write(lowlaId, 3, true);
-      lowlaId.id = '124';
+      lowlaId = testUtil.createLowlaId('fooDb', 'fooColl', '124');
       rh.writeError(err, lowlaId);
-      lowlaId.id = '125';
+      lowlaId = testUtil.createLowlaId('fooDb', 'fooColl', '125');
       rh.write(lowlaId, 2, false, doc);
       rh.end();
       var output = out.getOutput();
