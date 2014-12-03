@@ -6,16 +6,19 @@ var _ = require('lodash');
 
 var lowla = {};
 
-lowla.Syncer = require('./lib/sync.js').LowlaSyncer;
-lowla.Adapter = require('./lib/adapter.js').LowlaAdapter;
+lowla.Syncer = require('./lib/sync').LowlaSyncer;
+lowla.Adapter = require('./lib/adapter').LowlaAdapter;
+lowla.NeDBDatastore = require('./lib/datastore/nedb').Datastore;
 
 lowla.configureRoutes = function(app, options) {
   var defaultConfig = {
-    syncUrl: 'mongodb://127.0.0.1/lowlasync',
-    mongoUrl: 'mongodb://127.0.0.1/lowladb'
+    datastore: false
   };
 
   var config = _.extend({}, defaultConfig, options);
+  if (!config.datastore) {
+    config.datastore = new lowla.NeDBDatastore({ dbDir: 'lowlanedb' });
+  }
 
   var syncer = new lowla.Syncer(config);
   config.syncNotifier = syncer.getNotifierFunction();

@@ -22,7 +22,8 @@ $ npm install lowladb-node --save
 ## Usage ##
 
 At its simplest, use `configureRoutes(app)` as above to configure an ExpressJS server with LowlaDB Sync and Adapter
-endpoints.  By default, LowlaDB will be configured to store its data in a local MongoDB instance.
+endpoints.  By default, LowlaDB will store its data via [NeDB](https://github.com/louischatriot/nedb) in a folder
+called `lowlanedb`.
 
 ### Configuration ###
 
@@ -30,13 +31,9 @@ The `configureRoutes` method takes an optional second argument with configuratio
 
 ```js
 var lowlaConfig = {
-    // The MongoDB URL to store Sync data
-    syncUrl: 'mongodb://127.0.0.1/lowlasync',
-
-    // The MongoDB URL to store document data
-    mongoUrl: 'mongodb://127.0.0.1/lowladb',
+    // The datastore to use; the default is NeDB
+    datastore: new lowla.NEDBDatastore({ dbDir: 'lowlanedb' })
 };
 
 lowla.configureRoutes(app, lowlaConfig);
 ```
-
