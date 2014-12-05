@@ -16,14 +16,18 @@
   "dependencies": {
     "bluebird": "^2.3.11",
     "lodash": "^2.4.1",
-    "mongo-oplog": "^0.1.4",
-    "mongodb": "^1.4.8",
-    "nedb": "^0.11.1"
+    "nedb": "^1.0.0"
   },
   "devDependencies": {
     "chai": "^1.9.1",
+    "chai-as-promised": "^4.1.1",
     "chai-things": "^0.2.0",
+    "istanbul": "^0.3.4",
     "mocha": "^1.21.4",
     "sinon": "^1.11.1"
+  },
+  "scripts": {
+    "test": "mocha --reporter spec --check-leaks tests/",
+    "test-cov": "istanbul cover node_modules/mocha/bin/_mocha -- --reporter dot --check-leaks tests/"
   }
 }

@@ -1,9 +1,11 @@
 (function() {
-  var should = require('chai').should();
+  var chai = require('chai');
+  chai.use(require('chai-as-promised'));
+  var should = chai.should();
   var _p = require('../lib/promiseImpl');
 
   describe('NEDB Datastore', function() {
-    var Datastore = require('../lib/datastore/nedb').Datastore;
+    var Datastore = require('../lib/nedb').Datastore;
     var db;
     beforeEach(function() {
       db = new Datastore({dbDir: null}); // in memory for tests
@@ -11,17 +13,17 @@
 
     describe('namespaceFromId()', function() {
       it('parses namespace from LowlaID', function() {
-        Datastore.namespaceFromId('dbName.collOne$1234').should.equal('dbName.collOne');
-        Datastore.namespaceFromId('dbName.collOne.subColl$1234').should.equal('dbName.collOne.subColl');
-        Datastore.namespaceFromId('dbName.collOne.subColl$1234$extraDollar').should.equal('dbName.collOne.subColl');
+        db.namespaceFromId('dbName.collOne$1234').should.equal('dbName.collOne');
+        db.namespaceFromId('dbName.collOne.subColl$1234').should.equal('dbName.collOne.subColl');
+        db.namespaceFromId('dbName.collOne.subColl$1234$extraDollar').should.equal('dbName.collOne.subColl');
       });
     });
 
     describe('idFromComponents()', function() {
       it('creates a LowlaID from components', function() {
-        Datastore.idFromComponents('dbName.collOne', '1234').should.equal('dbName.collOne$1234');
-        Datastore.idFromComponents('dbName.collOne.subColl', '1234').should.equal('dbName.collOne.subColl$1234');
-        Datastore.idFromComponents('dbName.collOne.subColl', '1234$extraDollar').should.equal('dbName.collOne.subColl$1234$extraDollar');
+        db.idFromComponents('dbName.collOne', '1234').should.equal('dbName.collOne$1234');
+        db.idFromComponents('dbName.collOne.subColl', '1234').should.equal('dbName.collOne.subColl$1234');
+        db.idFromComponents('dbName.collOne.subColl', '1234$extraDollar').should.equal('dbName.collOne.subColl$1234$extraDollar');
       });
     });
 
@@ -70,7 +72,7 @@
           db.updateDocumentByOperations('dbName.collTwo$9876', undefined, { $set: { a: 3 }})
         ])
           .then(function() {
-            return db.getAllDocuments(handler);
+            return db.getAllDocuments({ write: handler });
           })
           .then(function(res) {
             docs.should.have.length(3);
@@ -223,6 +225,12 @@
             should.not.exist(newDoc.b);
           });
       });
+
+      /*TODO - the following exhibits a bug in NeDB until https://github.com/louischatriot/nedb/pull/230 or equivalent
+      it('fails updates by rejecting promise', function() {
+        return db.updateDocumentByOperations('dbName.collName$1234', undefined, { $set: { $bad: 1 }})
+          .should.eventually.be.rejectedWith(Error);
+      })*/
     });
   })
 })();

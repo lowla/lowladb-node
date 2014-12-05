@@ -1,13 +1,19 @@
 
-var MongoClient = require('mongodb').MongoClient;
-var Mongo = require('mongodb');
 var _prom = require('../lib/promiseImpl.js');
 
-var _mc = new MongoClient();
-var _db;
+exports.createMockDatastore = function() {
+  return {
+    decodeSpecialTypes: function(obj) { return obj; },
+    encodeSpecialTypes: function(obj) { return obj; },
+    namespaceFromId: function(id) { return id.substring(0, id.indexOf('$')); },
+    idFromComponents: function(ns, id) { return ns + '$' + id; },
 
-var mongo = function(){};
-var _mongo = new mongo();
+    getAllDocuments: function() { return _prom.Promise.reject(Error('getAllDocuments() not implemented')); },
+    getDocument: function() { return _prom.Promise.reject(Error('getDocument() not implemented')); },
+    removeDocument: function() { return _prom.Promise.reject(Error('removeDocument() not implemented')); },
+    updateDocumentByOperations: function() { return _prom.Promise.reject(Error('updateDocumentByOperations() not implemented')); }
+  };
+};
 
 exports.createDocs = function(rootName, num){
   var docs = [];
@@ -76,119 +82,3 @@ exports.TestLogger = function(){
   this.warn=logFunc('warn', this);
   this.error=logFunc('error', this);
 };
-
-
-//mongo
-
-mongo.prototype.openDatabase = function(url){
-  return new _prom.Promise(function(resolve, reject){
-  _mc.connect(url, function (err, db) {
-    if (err) {
-      return reject(err);
-    }
-    _db = db;
-    resolve(db);
-  });
-  });
-};
-
-mongo.prototype.getCollection = function(db, collName){
-  return new _prom.Promise(function(resolve, reject) {
-    db.collection(collName, function (err, coll) {
-      if (err) {
-        return reject(err);
-      }
-      resolve(coll);
-    });
-  });
-};
-
-mongo.prototype.removeCollection = function(db, collName){
-  return new _prom.Promise(function(resolve, reject) {
-    db.dropCollection(collName, function (err, coll) {
-      if (err) {
-        return reject(err);
-      }
-      resolve(true);
-    });
-  });
-};
-
-mongo.prototype.findDocs = function(db, collectionName, query) {
-  return new _prom.Promise(function(resolve, reject) {
-    db.collection(collectionName, function (err, coll) {
-      if (err) {
-        return reject(error);
-      }
-      coll.find(query, function (err, cursor) {
-        if (err) {
-          return reject(error);
-        }
-        cursor.toArray(function (err, docs) {
-          if (err) {
-            return reject(error);
-          }
-          resolve(docs);
-        });
-      });
-    });
-  });
-};
-
-mongo.prototype.getIds = function(db, collectionName){
-  return _mongo.findDocs(db, collectionName, {}).then(function(docs){
-    var ids = [];
-    for (i in docs){
-      ids.push(docs[i]._id);
-    }
-    return ids;
-  })
-};
-
-mongo.prototype.insertDocs = function(db, collectionName, docs) {
-  return new _prom.Promise(function(resolve, reject) {
-    db.collection(collectionName, function (err, coll) {
-      if (err) {
-        return reject(err);
-      }
-      coll.insert(docs, function (err, result) {
-        if (err) {
-          return reject(err);
-        }
-        resolve(result);
-      });
-    });
-  });
-};
-
-mongo.prototype.getCollectionNames = function(db){
-  return new _prom.Promise(function(resolve, reject) {
-    db.collectionNames(function (err, colls) {
-      if (err) {
-        return reject(err);
-      }
-      var ret = [];
-      for (col in colls) {
-        var colname = colls[col].name;
-        if (-1 == colname.indexOf('.system.')) {
-          var collectionName = colname.substr(1 + colname.indexOf('.'));
-          ret.push(collectionName);
-        }
-      }
-      resolve(ret);
-    });
-  });
-};
-
-mongo.prototype.removeAllCollections = function(db){
-  return _mongo.getCollectionNames(db).then(function(collnames){
-    var promises = [];
-    collnames.forEach(function(collname){
-      var p = _mongo.removeCollection(db, collname);
-      promises.push(p);
-    });
-    return _prom.all(promises);
-  })
-};
-
-exports.mongo = _mongo;

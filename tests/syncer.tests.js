@@ -2,7 +2,6 @@
 var should = require('chai').should();
 var LowlaSyncer = require('../lib/sync.js').LowlaSyncer;
 var testUtil = require('./testUtil');
-var Datastore = require('../lib/datastore/datastore').Datastore;
 
 testUtil.enableLongStackSupport();
 
@@ -11,6 +10,7 @@ describe('LowlaSync', function() {
   var testPayload;
 
   beforeEach(function() {
+    lowlaSync = new LowlaSyncer();
     testPayload = {
       modified: [
         {
@@ -20,16 +20,6 @@ describe('LowlaSync', function() {
         }
       ]
     };
-  });
-
-  beforeEach(function() {
-    lowlaSync = new LowlaSyncer({
-      datastore: new Datastore({ mongoUrl: 'mongodb://127.0.0.1/lowlasynctest' })
-    });
-
-    return lowlaSync.config.datastore.ready.then(function() {
-      return testUtil.mongo.removeAllCollections(lowlaSync.config.datastore.config.db);
-    });
   });
 
   describe('Updates', function() {
@@ -55,7 +45,7 @@ describe('LowlaSync', function() {
     it('should be saving atoms', function() {
       return lowlaSync.updateWithPayload(testPayload)
         .then(function () {
-          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomCollection, {});
+          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomPrefix, {});
         })
         .then(function (atoms) {
           atoms.length.should.equal(1);
@@ -74,7 +64,7 @@ describe('LowlaSync', function() {
           return lowlaSync.updateWithPayload(testPayload);
         })
         .then(function() {
-          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomCollection, {});
+          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomPrefix, {});
         })
         .then(function(atoms) {
           atoms.length.should.equal(1);

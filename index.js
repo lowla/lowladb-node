@@ -8,7 +8,7 @@ var lowla = {};
 
 lowla.Syncer = require('./lib/sync').LowlaSyncer;
 lowla.Adapter = require('./lib/adapter').LowlaAdapter;
-lowla.NeDBDatastore = require('./lib/datastore/nedb').Datastore;
+lowla.NeDBDatastore = require('./lib/nedb').Datastore;
 
 lowla.configureRoutes = function(app, options) {
   var defaultConfig = {
