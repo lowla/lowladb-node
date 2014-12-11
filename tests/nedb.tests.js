@@ -127,8 +127,11 @@
 
       it('can not find what is not there', function() {
         return db.getDocument('dbName.collNotThere$311')
-          .then(function(doc) {
-            should.not.exist(doc);
+          .then(function() {
+            throw Error('Should not resolve on missing doc');
+          }, function(err) {
+            should.exist(err.isDeleted);
+            err.isDeleted.should.equal(true);
           });
       });
     });
