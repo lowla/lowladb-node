@@ -72,6 +72,25 @@ describe('LowlaSync', function() {
           atoms[0].sequence.should.equal(3);
         });
     });
+
+    it('should mark atoms as deleted', function() {
+      return lowlaSync.updateWithPayload(testPayload)
+        .then(function() {
+          var deletePayload = { modified: [], deleted: [ "testdb.TestCollection$1234" ]};
+          return lowlaSync.updateWithPayload(deletePayload);
+        })
+        .then(function() {
+          return lowlaSync.config.datastore.findAll(lowlaSync.config.atomPrefix, {});
+        })
+        .then(function (atoms) {
+          atoms.length.should.equal(1);
+          atoms[0]._id.should.equal('testdb.TestCollection$1234');
+          atoms[0].version.should.equal(1);
+          atoms[0].clientNs.should.equal('testDb.TestCollection');
+          atoms[0].sequence.should.equal(3);
+          atoms[0].deleted.should.equal(true);
+        });
+    })
   });
 
   describe('Changes', function() {
