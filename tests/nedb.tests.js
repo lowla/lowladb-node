@@ -174,6 +174,18 @@
             docs[1].a.should.equal(3);
           });
       });
+
+      it('conflicts if versions do not match', function() {
+        return db.updateDocumentByOperations('dbName.collName$1234', undefined, { $set: { a: 1, _version: 5 }})
+          .then(function() {
+            return db.removeDocument('dbName.collName$1234', 3);
+          })
+          .then(function() {
+            throw Error('Should not have removed document!');
+          }, function(err) {
+            err.isConflict.should.equal(true);
+          });
+      });
     });
 
     describe('updateDocumentByOperations()', function() {
@@ -226,6 +238,44 @@
             newDoc._id.should.equal('1234');
             newDoc.a.should.equal(1);
             should.not.exist(newDoc.b);
+          });
+      });
+
+      it('fails on conflicts', function() {
+        return db.updateDocumentByOperations('dbName.collName$1234', undefined, { $set: { a: 1, b: 2 }, $inc: { _version: 1 }})
+          .then(function(doc) {
+            doc._version.should.equal(1);
+            return db.updateDocumentByOperations('dbName.collName$1234', 1, { $set: { a: 2, b: 4 }, $inc: { _version: 1 }})
+          })
+          .then(function(doc) {
+            doc._version.should.equal(2);
+            doc.a.should.equal(2);
+            doc.b.should.equal(4);
+            return db.updateDocumentByOperations('dbName.collName$1234', 1, { $set: { a: 22, b: 44 }, $inc: { _version: 1 }});
+          })
+          .then(function() {
+            throw Error('Should not have resolved on conflict doc');
+          }, function(err) {
+            err.should.deep.equal({isConflict: true});
+          });
+      });
+
+      it('can force updates on otherwise conflicting ops', function() {
+        return db.updateDocumentByOperations('dbName.collName$1234', undefined, { $set: { a: 1, b: 2 }, $inc: { _version: 1 }})
+          .then(function(doc) {
+            doc._version.should.equal(1);
+            return db.updateDocumentByOperations('dbName.collName$1234', 1, { $set: { a: 2, b: 4 }, $inc: { _version: 1 }})
+          })
+          .then(function(doc) {
+            doc._version.should.equal(2);
+            doc.a.should.equal(2);
+            doc.b.should.equal(4);
+            return db.updateDocumentByOperations('dbName.collName$1234', 1, { $set: { a: 22, b: 44 }, $inc: { _version: 1 }}, true);
+          })
+          .then(function(doc) {
+            doc.a.should.equal(22);
+            doc.b.should.equal(44);
+            doc._version.should.equal(3);
           });
       });
 
