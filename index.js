@@ -9,8 +9,11 @@ var lowla = {};
 lowla.Syncer = require('./lib/sync').LowlaSyncer;
 lowla.Adapter = require('./lib/adapter').LowlaAdapter;
 lowla.NeDBDatastore = require('./lib/nedb').Datastore;
+lowla.configureRoutes = configureRoutes;
 
-lowla.configureRoutes = function(app, options) {
+module.exports = lowla;
+
+function configureRoutes(app, options) {
   var defaultConfig = {
     datastore: false
   };
@@ -18,6 +21,9 @@ lowla.configureRoutes = function(app, options) {
   var config = _.extend({}, defaultConfig, options);
   if (!config.datastore) {
     config.datastore = new lowla.NeDBDatastore({ dbDir: 'lowlanedb' });
+  }
+  if (!config.notifier && config.io) {
+    config.notifier = require('./lib/sionotify').createNotifier(config.io);
   }
 
   var syncer = new lowla.Syncer(config);
@@ -29,6 +35,4 @@ lowla.configureRoutes = function(app, options) {
   adapter.configureRoutes(app);
 
   return config;
-};
-
-module.exports = lowla;
+}
