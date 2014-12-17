@@ -1,5 +1,5 @@
 
-## LowlaDB for Node ##
+# LowlaDB for Node [![Build Status](https://travis-ci.org/lowla/lowladb-node.svg?branch=master)](https://travis-ci.org/lowla/lowladb-node)
 
 > A LowlaDB Sync and Adapter server for Node
 
